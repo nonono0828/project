@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" role="img" aria-label="ZX Suture monogram">
+  <defs>
+    <linearGradient id="spiderInk" x1="22" y1="20" x2="86" y2="91"
+                    gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#666a6e"/>
+      <stop offset=".42" stop-color="#36393c"/>
+      <stop offset="1" stop-color="#111214"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="9" y1="9" x2="99" y2="101" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#252a30"/>
+      <stop offset=".08" stop-color="#9da5ad"/>
+      <stop offset=".19" stop-color="#ffffff"/>
+      <stop offset=".26" stop-color="#4b525a"/>
+      <stop offset=".38" stop-color="#d9dde1"/>
+      <stop offset=".48" stop-color="#ffffff"/>
+      <stop offset=".515" stop-color="#343a41"/>
+      <stop offset=".55" stop-color="#eef1f3"/>
+      <stop offset=".64" stop-color="#c5cbd0"/>
+      <stop offset=".75" stop-color="#f9fafb"/>
+      <stop offset=".86" stop-color="#363c43"/>
+      <stop offset="1" stop-color="#dfe3e6"/>
+    </linearGradient>
+    <clipPath id="crossingBounds">
+      <rect x="0" y="22.5" width="108" height="63"/>
+    </clipPath>
+    <filter id="metalDepth" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow in="SourceAlpha" dx="-1" dy="2.4" stdDeviation="1.45"
+                    flood-color="#000" flood-opacity=".92" result="shadow"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation=".9" result="softAlpha"/>
+      <feSpecularLighting in="softAlpha" surfaceScale="7" specularConstant="1.45"
+                          specularExponent="42" lighting-color="#ffffff" result="specular">
+        <feDistantLight azimuth="225" elevation="52"/>
+      </feSpecularLighting>
+      <feComposite in="specular" in2="SourceAlpha" operator="in" result="specularCut"/>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+        <feMergeNode in="specularCut"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="108" height="108" fill="#000"/>
+  <g fill="none" stroke="url(#spiderInk)" stroke-width=".35"
+     stroke-linecap="round" stroke-linejoin="round" opacity=".38">
+    <path d="M54 54 54 0M54 54 75 0M54 54 95 13M54 54 108 32"/>
+    <path d="M54 54 108 54M54 54 108 76M54 54 95 95M54 54 76 108"/>
+    <path d="M54 54 54 108M54 54 32 108M54 54 13 95M54 54 0 76"/>
+    <path d="M54 54 0 54M54 54 0 32M54 54 13 13M54 54 32 0"/>
+    <circle cx="54" cy="54" r="6"/>
+    <circle cx="54" cy="54" r="11"/>
+    <circle cx="54" cy="54" r="16"/>
+    <circle cx="54" cy="54" r="21"/>
+    <circle cx="54" cy="54" r="26"/>
+    <circle cx="54" cy="54" r="31"/>
+    <circle cx="54" cy="54" r="36"/>
+    <circle cx="54" cy="54" r="41"/>
+    <circle cx="54" cy="54" r="46"/>
+    <circle cx="54" cy="54" r="51"/>
+    <path d="M54 0 75 0 95 13 108 32 108 76 95 95 76 108 32 108 13 95 0 76 0 32 13 13 32 0Z"/>
+  </g>
+  <g transform="translate(54 54) rotate(-61.5) skewX(-40) rotate(135) scale(.74 .59) translate(-54 -54)"
+     fill="none" stroke="url(#metal)" stroke-width="11"
+     stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="3"
+     filter="url(#metalDepth)">
+    <path d="M17 28H79L55 54H40L29 80H91"/>
+    <path d="M39 28 71 80" stroke-linecap="square"
+          clip-path="url(#crossingBounds)"/>
+  </g>
+  <g transform="translate(54 54) rotate(-61.5) skewX(-40) rotate(135) scale(.74 .59) translate(-54 -54)"
+     fill="#000">
+    <path d="M0 14H38L8.3 41H0Z"/>
+    <path d="M100.5 67H108V94H70.8Z"/>
+  </g>
+</svg>

@@ -1,0 +1,15 @@
+{
+  "appId": "cn.hajimi.spider001",
+  "appName": "智巡精灵",
+  "webDir": "dist",
+  "loggingBehavior": "none",
+  "server": {
+    "androidScheme": "http",
+    "allowNavigation": [
+      "192.168.4.1"
+    ]
+  },
+  "android": {
+    "backgroundColor": "#07101f"
+  }
+}

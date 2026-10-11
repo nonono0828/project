@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07111f">
+  <title>机器人现场配置台</title>
+  <style>
+    :root{color-scheme:dark;--bg:#07111f;--panel:#0d1b2d;--panel2:#11243b;--line:#243b55;--text:#eef6ff;--muted:#8fa5bd;--blue:#36a3ff;--green:#37d995;--yellow:#ffc65b;--red:#ff6b6b;--radius:16px;font-family:Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(circle at 80% 0,#12345c 0,transparent 35%),var(--bg);color:var(--text)}body{min-height:100dvh}button,input,select{font:inherit}button{cursor:pointer}.app{min-height:100dvh;display:grid;grid-template-columns:220px minmax(0,1fr)}
+    .sidebar{position:sticky;top:0;height:100dvh;padding:26px 18px;border-right:1px solid var(--line);background:#091522e8;backdrop-filter:blur(16px);z-index:5}.brand{display:flex;gap:12px;align-items:center;margin:0 8px 28px}.brand-logo{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(135deg,#2594ef,#42dbad);font-size:23px;box-shadow:0 10px 30px #1796ff33}.brand h1{font-size:17px;margin:0}.brand p{font-size:11px;color:var(--muted);margin:4px 0 0}.nav{display:grid;gap:8px}.nav button{min-height:48px;border:0;border-radius:12px;padding:0 15px;text-align:left;color:var(--muted);background:transparent}.nav button.active{color:white;background:#1a3654;box-shadow:inset 3px 0 var(--blue)}.nav .ico{display:inline-block;width:25px}.sidebar-foot{position:absolute;left:26px;right:26px;bottom:24px;font-size:11px;color:var(--muted);line-height:1.6}
+    .main{min-width:0;padding:0 30px 40px}.topbar{position:sticky;top:0;z-index:4;min-height:78px;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 0;background:linear-gradient(180deg,#07111ff7 70%,transparent)}.top-title h2{font-size:21px;margin:0}.top-title p{margin:5px 0 0;color:var(--muted);font-size:12px}.session-actions{display:flex;gap:10px;align-items:center}.countdown{min-width:100px;text-align:center;border:1px solid var(--line);background:#0d1b2d;border-radius:12px;padding:8px 12px}.countdown small{display:block;color:var(--muted);font-size:10px}.countdown strong{font-size:18px;font-variant-numeric:tabular-nums}.btn{min-height:44px;border-radius:11px;border:1px solid var(--line);padding:0 16px;background:#162a42;color:var(--text);transition:.18s}.btn:hover{border-color:#4d7198;transform:translateY(-1px)}.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}.btn.primary{border-color:#2a92e8;background:#1479c9}.btn.good{border-color:#249d70;background:#157653}.btn.danger{border-color:#b3444a;background:#762c34}.btn.ghost{background:transparent}.btn.small{min-height:38px;padding:0 12px;font-size:13px}
+    .notice{display:flex;gap:10px;align-items:flex-start;border:1px solid #725b24;background:#352a13;color:#ffdc8c;border-radius:12px;padding:11px 14px;font-size:13px;line-height:1.55;margin-bottom:18px}.offline{border-color:#71383d;background:#351a20;color:#ffadb2}.view{display:none;animation:fade .18s ease}.view.active{display:block}@keyframes fade{from{opacity:.35;transform:translateY(4px)}}.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}.card{grid-column:span 4;border:1px solid var(--line);background:linear-gradient(150deg,#102239,#0b192a);border-radius:var(--radius);padding:18px;min-width:0;box-shadow:0 15px 40px #0002}.card.wide{grid-column:span 8}.card.full{grid-column:1/-1}.card.half{grid-column:span 6}.card h3{font-size:15px;margin:0 0 15px;display:flex;align-items:center;justify-content:space-between}.card h3 small{font-size:11px;color:var(--muted);font-weight:400}.metric{font-size:28px;font-weight:700;line-height:1.15}.sub{font-size:12px;color:var(--muted);margin-top:6px}.kv{display:grid;grid-template-columns:minmax(95px,.8fr) minmax(0,1.2fr);gap:10px 14px;font-size:13px}.kv span:nth-child(odd){color:var(--muted)}.kv span:nth-child(even){text-align:right;overflow-wrap:anywhere}.badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 9px;font-size:11px;background:#253850;color:#caddf0}.badge:before{content:"";width:7px;height:7px;border-radius:50%;background:#8193a7}.badge.ok{background:#163c33;color:#86f0c5}.badge.ok:before{background:var(--green)}.badge.warn{background:#453919;color:#ffe092}.badge.warn:before{background:var(--yellow)}.badge.err{background:#442027;color:#ffadb2}.badge.err:before{background:var(--red)}
+    .section-title{margin:5px 0 16px}.section-title h2{font-size:20px;margin:0}.section-title p{font-size:12px;color:var(--muted);margin:6px 0 0}.form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px}.field{display:grid;gap:7px}.field label{font-size:12px;color:var(--muted)}input,select{min-width:0;width:100%;height:46px;border:1px solid var(--line);border-radius:10px;padding:0 12px;color:white;background:#081624;font-size:16px;outline:0}input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px #299cff1f}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.switch-row{display:flex;align-items:center;justify-content:space-between;gap:18px}.switch{position:relative;width:52px;height:30px;flex:none}.switch input{position:absolute;opacity:0}.switch i{display:block;width:100%;height:100%;border-radius:20px;background:#34475b;transition:.2s}.switch i:after{content:"";position:absolute;width:24px;height:24px;left:3px;top:3px;border-radius:50%;background:white;transition:.2s}.switch input:checked+i{background:#18865f}.switch input:checked+i:after{transform:translateX(22px)}.hint{font-size:12px;color:var(--muted);line-height:1.55;margin:10px 0 0}.operation{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--muted)}
+    .network-list{display:grid;gap:8px;max-height:310px;overflow:auto}.network{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 12px;border:1px solid var(--line);border-radius:11px;padding:11px 12px;background:#091828}.network strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}.network small{color:var(--muted)}.network .signal{grid-row:span 2;align-self:center;color:#8bcfff}.bands{display:flex;flex-wrap:wrap;gap:8px}.band{position:relative}.band input{position:absolute;opacity:0}.band span{min-width:48px;min-height:42px;display:grid;place-items:center;border:1px solid var(--line);border-radius:10px;background:#091828;font-size:13px}.band input:checked+span{border-color:var(--blue);background:#123f65;color:#bfe5ff}.cell-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.cell{border:1px solid var(--line);border-radius:12px;padding:12px;background:#091828}.cell.serving{border-color:#288c69;box-shadow:inset 0 0 0 1px #288c69}.cell h4{font-size:13px;margin:0 0 10px}.cell dl{display:grid;grid-template-columns:auto 1fr;gap:5px 8px;margin:0;font-size:11px}.cell dt{color:var(--muted)}.cell dd{text-align:right;margin:0}.preview-shell{display:none;margin-top:14px;border-radius:13px;overflow:hidden;background:#03080d;aspect-ratio:4/3;position:relative}.preview-shell.open{display:block}.preview-shell img{width:100%;height:100%;object-fit:contain}.preview-empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px}.segmented{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;border-radius:12px;background:#081624}.segmented button{min-height:42px;border:0;border-radius:9px;background:transparent;color:var(--muted)}.segmented button.active{background:#18446a;color:#fff}.bottom-nav{display:none}.toast{position:fixed;right:20px;bottom:20px;z-index:20;max-width:min(380px,calc(100vw - 30px));padding:13px 16px;border-radius:12px;background:#15304b;border:1px solid #3e668c;box-shadow:0 18px 50px #0008;font-size:13px;transform:translateY(120px);opacity:0;transition:.25s}.toast.show{transform:none;opacity:1}.toast.error{background:#48222a;border-color:#a84851}
+    @media(max-width:1023px){.app{grid-template-columns:170px minmax(0,1fr)}.sidebar{padding:22px 12px}.brand{margin-left:5px}.brand h1{font-size:14px}.nav button{padding:0 10px}.main{padding:0 18px 35px}.card{grid-column:span 6}.card.wide{grid-column:1/-1}.cell-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:767px){.app{display:block;padding-bottom:calc(76px + env(safe-area-inset-bottom))}.sidebar{display:none}.main{padding:0 13px 20px}.topbar{min-height:70px;padding-top:max(10px,env(safe-area-inset-top));align-items:flex-start}.top-title h2{font-size:17px}.top-title p{font-size:10px}.session-actions{gap:6px}.countdown{min-width:78px;padding:6px 8px}.countdown strong{font-size:16px}.topbar .extend-label,.topbar .close-label{display:none}.topbar .btn{min-width:44px;padding:0 11px}.notice{font-size:12px;margin-bottom:13px}.section-title{display:none}.grid{display:block}.card,.card.wide,.card.half,.card.full{margin-bottom:12px;padding:15px}.card h3{margin-bottom:13px}.metric{font-size:23px}.form-row{grid-template-columns:1fr}.actions .btn{flex:1 1 130px}.cell-list{grid-template-columns:1fr}.bottom-nav{position:fixed;display:grid;grid-template-columns:repeat(4,1fr);left:0;right:0;bottom:0;z-index:10;padding:6px 6px calc(6px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:#091522f2;backdrop-filter:blur(18px)}.bottom-nav button{min-height:55px;border:0;border-radius:10px;color:var(--muted);background:transparent;font-size:10px}.bottom-nav button b{display:block;font-size:20px;margin-bottom:2px}.bottom-nav button.active{color:#a9dcff;background:#173653}.toast{left:15px;right:15px;bottom:calc(82px + env(safe-area-inset-bottom))}.kv{font-size:12px}.preview-shell{aspect-ratio:4/3}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-logo">◆</div><div><h1>机器人现场配置台</h1><p>连接机器人热点后使用</p></div></div>
+    <nav class="nav">
+      <button class="active" data-tab="overview"><span class="ico">◉</span>概览</button>
+      <button data-tab="wifi"><span class="ico">⌁</span>Wi-Fi 管理</button>
+      <button data-tab="modem"><span class="ico">▥</span>4G 管理</button>
+      <button data-tab="video"><span class="ico">▣</span>视频设置</button>
+    </nav>
+    <div class="sidebar-foot">本页面仅在机器人本地热点内可用。热点到期后自动关闭，不影响 4G 云端链路。</div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="top-title"><h2 id="page-title">现场配置</h2><p id="connection-text">正在连接机器人…</p></div>
+      <div class="session-actions">
+        <div class="countdown"><small>热点剩余</small><strong id="countdown">10:00</strong></div>
+        <button id="extend-btn" class="btn ghost" title="延长 10 分钟">＋<span class="extend-label"> 延长 10 分钟</span></button>
+        <button id="close-btn" class="btn danger" title="立即关闭热点">×<span class="close-label"> 关闭热点</span></button>
+      </div>
+    </header>
+    <div id="offline-notice" class="notice offline" hidden><span>!</span><span>暂时无法读取设备接口。页面布局仍可预览；连接机器人热点后会自动重试。</span></div>
+    <div class="notice"><span>⚡</span><span>热点会在倒计时结束后自动关闭以节省电量。连接外部 Wi-Fi 时热点信道可能切换，手机短暂断开后请重新连接机器人热点。</span></div>
+
+    <section class="view active" data-view="overview">
+      <div class="section-title"><h2>设备概览</h2><p>本地状态与常用操作</p></div>
+      <div class="grid">
+        <article class="card"><h3>设备状态 <span id="device-badge" class="badge err">机器人未连接</span></h3><div class="metric" id="device-id">蜘蛛001</div><div class="sub" id="device-sub">等待机器人状态</div></article>
+        <article class="card"><h3>当前上行</h3><div class="metric" id="uplink-main">—</div><div class="sub" id="uplink-sub">尚未报告</div></article>
+        <article class="card"><h3>4G 状态</h3><div class="metric" id="modem-main">初始化中</div><div class="sub" id="modem-sub">AT 接口尚未报告</div></article>
+        <article class="card wide"><h3>本地视频预览 <small>默认关闭以降低功耗</small></h3><div class="actions"><button id="preview-btn" class="btn primary">开启预览</button></div><div id="preview-shell" class="preview-shell"><div class="preview-empty">正在等待视频帧…</div><img id="preview-image" alt="机器人摄像头实时画面"></div></article>
+        <article class="card"><h3>配置会话</h3><div class="kv"><span>自动关闭</span><span>10 分钟</span><span>延长次数</span><span id="extended-value">0 次</span><span>本地地址</span><span>192.168.4.1</span></div><div class="field" style="margin-top:16px"><label for="extension-minutes">管理员延长时间（分钟）</label><input id="extension-minutes" type="number" inputmode="numeric" min="1" max="1440" value="10"></div><div class="actions"><button id="custom-extend-btn" class="btn primary">应用延长时间</button></div></article>
+      </div>
+    </section>
+
+    <section class="view" data-view="wifi">
+      <div class="section-title"><h2>Wi-Fi 连接管理</h2><p>仅在开启功能后扫描，避免无意义耗电</p></div>
+      <div class="grid">
+        <article class="card half"><h3>Wi-Fi 功能 <span id="wifi-badge" class="badge">未报告</span></h3><div class="switch-row"><div><strong>允许扫描和连接</strong><p class="hint">关闭后停止扫描与重连。配置期间 AP 与 STA 可以临时共存。</p></div><label class="switch"><input id="wifi-enabled" type="checkbox"><i></i></label></div><div class="operation" id="wifi-operation">暂无操作</div></article>
+        <article class="card half"><h3>云端上行链路</h3><div class="segmented"><button id="uplink-l610">L610 4G</button><button id="uplink-wifi">Wi-Fi</button></div><p class="hint">选择 Wi-Fi 前必须先成功连接路由器；切换失败时保留原链路。</p></article>
+        <article class="card half"><h3>附近网络 <button id="scan-btn" class="btn small primary">手动扫描</button></h3><div id="network-list" class="network-list"><div class="sub">开启 Wi-Fi 功能后点击扫描</div></div></article>
+        <article class="card half"><h3>连接路由器</h3><div class="field"><label for="wifi-network">选择网络</label><select id="wifi-network"><option value="">请选择网络</option></select></div><div class="field" style="margin-top:12px"><label for="wifi-password">Wi-Fi 密码</label><input id="wifi-password" type="password" maxlength="63" autocomplete="new-password" placeholder="开放网络请留空"></div><div class="actions"><button id="connect-btn" class="btn good">连接</button></div><p class="hint">密码只用于本次连接，不会出现在页面状态、遥测或日志中。</p></article>
+      </div>
+    </section>
+
+    <section class="view" data-view="modem">
+      <div class="section-title"><h2>4G 管理</h2><p>所有操作由唯一 AT 队列串行处理</p></div>
+      <div class="grid">
+        <article class="card half"><h3>网络状态 <span id="at-badge" class="badge warn">初始化中</span></h3><div class="kv"><span>SIM</span><span id="sim-value">—</span><span>注册状态</span><span id="registration-value">—</span><span>运营商</span><span id="operator-value">—</span><span>信号</span><span id="rssi-value">—</span><span>制式</span><span id="rat-value">—</span><span>频段配置</span><span id="band-value">—</span></div><div class="actions"><button id="modem-query" class="btn primary">刷新信息</button><button id="modem-reselect" class="btn">自动选网</button></div><div class="operation" id="modem-operation">暂无操作</div></article>
+        <article class="card half"><h3>LTE 频段</h3><div id="bands" class="bands"></div><div class="actions"><button id="set-bands" class="btn primary">保存频段</button><button id="restore-bands" class="btn">恢复全部并自动选网</button></div><p class="hint">频段写入成功后必须彻底断电再上电才能按新配置注册。设置错误可能造成无法联网。</p></article>
+        <article class="card half"><h3>小区锁定</h3><div class="form-row"><div class="field"><label for="earfcn">EARFCN</label><input id="earfcn" inputmode="numeric" placeholder="例如 9826"></div><div class="field"><label for="pci">PCI（可选）</label><input id="pci" inputmode="numeric" placeholder="0–503"></div></div><label style="font-size:13px"><input id="lock-pci" type="checkbox" style="width:auto;height:auto"> 同时锁定 PCI</label><div class="actions"><button id="set-cell" class="btn primary">锁定小区</button><button id="clear-cell" class="btn danger">清除锁定</button></div><p class="hint" id="cell-lock-value">当前锁定配置：—</p></article>
+        <article class="card full"><h3>服务与邻区信息 <small id="cell-count">0 个小区</small></h3><div id="cell-list" class="cell-list"><div class="sub">点击“刷新信息”查询小区</div></div></article>
+      </div>
+    </section>
+
+    <section class="view" data-view="video">
+      <div class="section-title"><h2>视频流设置</h2><p>本地预览与云端上行共用同一相机输出</p></div>
+      <div class="grid">
+        <article class="card half"><h3>画面参数 <span id="camera-badge" class="badge">未报告</span></h3><div class="form-row"><div class="field"><label for="resolution">清晰度</label><select id="resolution"><option value="640x480">640 × 480</option><option value="1280x720">1280 × 720</option><option value="1920x1080">1920 × 1080</option></select></div><div class="field"><label for="fps">帧率</label><select id="fps"><option>5</option><option selected>8</option><option>15</option><option>20</option><option>30</option></select></div></div><div class="actions"><button id="save-video" class="btn primary">应用视频设置</button></div><p class="hint">默认 640×480 / 8 FPS。高清或高帧率会增加 4G 流量、内存压力和功耗。</p><div class="operation" id="video-operation">暂无操作</div></article>
+        <article class="card half"><h3>当前输出</h3><div class="metric" id="video-main">640×480</div><div class="sub" id="video-sub">8 FPS · 等待相机状态</div><div class="kv" style="margin-top:18px"><span>相机</span><span id="camera-ready-value">—</span><span>本地 MJPEG</span><span id="mjpeg-value">—</span><span>待应用</span><span id="video-pending-value">—</span></div></article>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="active" data-tab="overview"><b>◉</b>概览</button><button data-tab="wifi"><b>⌁</b>Wi-Fi</button><button data-tab="modem"><b>▥</b>4G</button><button data-tab="video"><b>▣</b>视频</button>
+  </nav>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const state = {token:'', session:null, status:null, networks:[], preview:false, online:false, videoEditing:false, videoSubmitted:null};
+  const supportedBands = [1,3,5,7,8,20,34,39,40,41];
+  let toastTimer = 0, refreshTimer = 0, localTick = 0;
+  const titles = {overview:'现场配置',wifi:'Wi-Fi 管理',modem:'4G 管理',video:'视频流设置'};
+  const requestId = prefix => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+  const showToast = (message,error=false) => {const el=$('toast');el.textContent=message;el.className=`toast show${error?' error':''}`;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.className='toast',3200)};
+  const setBadge = (id,text,type='') => {const el=$(id);el.textContent=text;el.className=`badge ${type}`.trim()};
+  const fmtOperation = op => !op||op.state==='idle'?'暂无操作':`${op.state==='queued'?'排队中':op.state==='applying'?'处理中':op.state==='success'?'已完成':'失败'} · ${op.message||op.error||''}`;
+  const registrationText = value => ({0:'未注册',1:'已注册（本地）',2:'正在搜索',3:'注册被拒绝',4:'未知',5:'已注册（漫游）'})[value] || (value==null||value<0?'未报告':String(value));
+  const json = async (url,options={},retryAuth=true) => {
+    const method = (options.method||'GET').toUpperCase();
+    const headers = Object.assign({'Content-Type':'application/json'},options.headers||{});
+    if(method!=='GET') headers['X-Portal-Token']=state.token;
+    const response = await fetch(url,Object.assign({},options,{headers,cache:'no-store'}));
+    const payload = await response.json().catch(()=>({message:`HTTP ${response.status}`}));
+    if(!response.ok&&retryAuth&&method!=='GET'&&url!=='/api/local/v1/portal/close'&&(response.status===401||response.status===403)){
+      await refreshSession();
+      return json(url,options,false);
+    }
+    if(!response.ok) throw new Error(payload.message||payload.error||`HTTP ${response.status}`);
+    return payload.data;
+  };
+  const command = async (url,body,message) => {try{await json(url,{method:'POST',body:JSON.stringify(body)});showToast(message);setTimeout(refresh,350);return true}catch(error){showToast(error.message,true);return false}};
+
+  function selectTab(name){document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===name));document.querySelectorAll('[data-view]').forEach(el=>el.classList.toggle('active',el.dataset.view===name));$('page-title').textContent=titles[name];window.scrollTo({top:0,behavior:'smooth'})}
+  document.querySelectorAll('[data-tab]').forEach(el=>el.addEventListener('click',()=>selectTab(el.dataset.tab)));
+  supportedBands.forEach(band=>{const label=document.createElement('label');label.className='band';label.innerHTML=`<input type="checkbox" value="${band}" checked><span>B${band}</span>`;$('bands').appendChild(label)});
+
+  function renderSession(session){state.session=session;const seconds=Math.max(0,session?.remaining_seconds||0);$('countdown').textContent=`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;$('extend-btn').disabled=!session?.can_extend;$('custom-extend-btn').disabled=!session?.can_extend;$('close-btn').disabled=!session?.active||session?.closing;$('extended-value').textContent=`${session?.extension_count||0} 次`;const max=Number(session?.max_extension_minutes)||1440;$('extension-minutes').max=String(max)}
+  const networkKey = network => JSON.stringify([String(network?.ssid||''),String(network?.security||'')]);
+  function renderNetworks(networks){const list=$('network-list'),select=$('wifi-network'),selectedKey=select.value;state.networks=Array.isArray(networks)?networks:[];list.textContent='';select.textContent='';const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='请选择网络';select.appendChild(placeholder);if(!state.networks.length){list.innerHTML='<div class="sub">尚无扫描结果</div>';return}const renderedKeys=new Set();state.networks.forEach(network=>{const row=document.createElement('div');row.className='network';const name=document.createElement('strong');name.textContent=network.ssid||'(隐藏网络)';const detail=document.createElement('small');detail.textContent=`信道 ${network.channel} · ${network.security}${network.supported?'':' · 不支持'}`;const signal=document.createElement('span');signal.className='signal';signal.textContent=`${network.rssi} dBm`;row.append(name,detail,signal);list.appendChild(row);const key=networkKey(network);if(renderedKeys.has(key))return;renderedKeys.add(key);const option=document.createElement('option');option.value=key;option.textContent=`${network.ssid||'(隐藏网络)'} (${network.rssi} dBm)`;option.disabled=!network.supported;select.appendChild(option)});const selectedOption=[...select.options].find(option=>option.value===selectedKey&&!option.disabled);select.value=selectedOption?selectedKey:''}
+  function renderCells(cells){const list=$('cell-list');list.textContent='';const values=Array.isArray(cells)?cells:[];$('cell-count').textContent=`${values.length} 个小区`;if(!values.length){list.innerHTML='<div class="sub">暂无服务或邻区信息</div>';return}values.forEach(cell=>{const box=document.createElement('div');box.className=`cell${cell.serving?' serving':''}`;const title=document.createElement('h4');title.textContent=cell.serving?'当前服务小区':'邻区';const dl=document.createElement('dl');[['频段',cell.band?`B${cell.band}`:'—'],['EARFCN',cell.earfcn??'—'],['PCI',cell.pci??'—'],['小区 ID',cell.cell_id||'—'],['TAC',cell.tac||'—'],['RSRP',cell.rsrp??'—'],['RSRQ',cell.rsrq??'—']].forEach(([key,value])=>{const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=key;dd.textContent=value;dl.append(dt,dd)});box.append(title,dl);list.appendChild(box)})}
+  function render(data){state.status=data;state.online=true;$('offline-notice').hidden=true;$('connection-text').textContent='机器人已连接';renderSession(data.session);$('device-id').textContent='蜘蛛001';$('device-sub').textContent=data.snapshot_error?`状态快照：${data.snapshot_error}`:'机器人本地配置接口正常';setBadge('device-badge','机器人已连接','ok');
+    const wifi=data.wifi||{};$('wifi-enabled').checked=!!wifi.feature_enabled;setBadge('wifi-badge',wifi.connected?'已连接':wifi.feature_enabled?'已开启':'已关闭',wifi.connected?'ok':wifi.feature_enabled?'warn':'');$('wifi-operation').textContent=fmtOperation(wifi.operation);renderNetworks(wifi.networks);$('uplink-l610').classList.toggle('active',wifi.active_uplink==='l610');$('uplink-wifi').classList.toggle('active',wifi.active_uplink==='wifi');$('uplink-main').textContent=wifi.active_uplink==='wifi'?'Wi-Fi':wifi.active_uplink==='l610'?'L610 4G':'未连接';$('uplink-sub').textContent=wifi.connected?`${wifi.ssid} · ${wifi.ip||'获取 IP 中'}`:'Wi-Fi 未连接';
+    const modem=data.modem||{};const registered=modem.registration===1||modem.registration===5;$('modem-main').textContent=registered?(modem.operator||'4G 已注册'):modem.at_ready?'未注册':'初始化中';$('modem-sub').textContent=modem.at_ready?`${modem.rat||'制式未知'} · ${modem.rssi==null?'信号未知':`RSSI ${modem.rssi}`}`:'等待 AT 接口';setBadge('at-badge',modem.at_ready?'AT 已就绪':'AT 初始化中',modem.at_ready?'ok':'warn');$('sim-value').textContent=modem.sim_ready?'已就绪':'未就绪';$('registration-value').textContent=registrationText(modem.registration);$('operator-value').textContent=modem.operator||'—';$('rssi-value').textContent=modem.rssi==null?'—':String(modem.rssi);$('rat-value').textContent=modem.rat||'—';$('band-value').textContent=modem.band_config||'—';$('cell-lock-value').textContent=`当前锁定配置：${modem.cell_lock_config||'未锁定/未报告'}`;$('modem-operation').textContent=fmtOperation(modem.operation);renderCells(modem.cells);
+    const video=data.video||{};setBadge('camera-badge',video.camera_ready?'相机已就绪':video.pending?'等待应用':'相机未就绪',video.camera_ready?'ok':video.pending?'warn':'');$('video-main').textContent=video.resolution||`${video.width||640}x${video.height||480}`;$('video-sub').textContent=`${video.fps||8} FPS${video.error?' · '+video.error:''}`;$('camera-ready-value').textContent=video.camera_ready?'已就绪':'未就绪';$('mjpeg-value').textContent=video.local_mjpeg_enabled?'已开启':'已关闭';$('video-pending-value').textContent=video.pending?'是':'否';$('video-operation').textContent=fmtOperation(video.operation);if(state.videoSubmitted&&video.resolution===state.videoSubmitted.resolution&&video.fps===state.videoSubmitted.fps){state.videoSubmitted=null;state.videoEditing=false}if(!state.videoEditing){if(video.resolution&&[...$('resolution').options].some(o=>o.value===video.resolution))$('resolution').value=video.resolution;if(video.fps&&[...$('fps').options].some(o=>Number(o.value)===video.fps))$('fps').value=String(video.fps)}}
+  function renderOffline(){state.online=false;$('offline-notice').hidden=false;$('connection-text').textContent='机器人未连接';$('device-id').textContent='蜘蛛001';$('device-sub').textContent='等待机器人状态';setBadge('device-badge','机器人未连接','err')}
+  async function refreshSession(){const session=await json('/api/local/v1/session',{method:'GET'},false);state.token=session.session_token||'';renderSession(session);return session}
+  async function refresh(){try{const data=await json('/api/local/v1/status',{method:'GET'});render(data)}catch(error){renderOffline()}}
+  async function recover(){try{await refreshSession();await refresh()}catch(error){renderOffline()}}
+  async function boot(){await recover();clearInterval(refreshTimer);refreshTimer=setInterval(refresh,2500);clearInterval(localTick);localTick=setInterval(()=>{if(state.session&&state.session.remaining_seconds>0){state.session.remaining_seconds--;renderSession(state.session)}},1000)}
+
+  const extendByMinutes = async minutes => {const max=Number(state.session?.max_extension_minutes)||1440;if(!Number.isInteger(minutes)||minutes<1||minutes>max){showToast(`延长时间必须为 1–${max} 分钟`,true);return}await command('/api/local/v1/portal/extend',{request_id:requestId('extend'),minutes},`配置时间已延长 ${minutes} 分钟`)};
+  $('extend-btn').addEventListener('click',()=>extendByMinutes(10));
+  $('custom-extend-btn').addEventListener('click',()=>extendByMinutes(Number($('extension-minutes').value)));
+  $('close-btn').addEventListener('click',()=>{if(confirm('确认立即关闭本地配置热点？手机将与机器人断开。'))command('/api/local/v1/portal/close',{request_id:requestId('close')},'热点正在关闭')});
+  $('preview-btn').addEventListener('click',()=>{state.preview=!state.preview;$('preview-shell').classList.toggle('open',state.preview);$('preview-btn').textContent=state.preview?'关闭预览':'开启预览';$('preview-image').src=state.preview?'http://192.168.4.1:8080/live/mjpeg':''});
+  $('wifi-enabled').addEventListener('change',event=>command('/api/local/v1/wifi/commands',{request_id:requestId('wifi'),action:'set_enabled',enabled:event.target.checked},event.target.checked?'正在开启 Wi-Fi 功能':'正在关闭 Wi-Fi 功能'));
+  $('scan-btn').addEventListener('click',()=>command('/api/local/v1/wifi/commands',{request_id:requestId('scan'),action:'scan'},'已开始扫描附近 Wi-Fi'));
+  $('connect-btn').addEventListener('click',()=>{const selectedKey=$('wifi-network').value,network=state.networks.find(item=>item.supported&&networkKey(item)===selectedKey);if(!network){showToast('请先选择一个网络',true);return}command('/api/local/v1/wifi/commands',{request_id:requestId('connect'),action:'connect',ssid:network.ssid,password:$('wifi-password').value,security:network.security},'正在连接路由器，热点可能短暂重连');$('wifi-password').value=''});
+  $('uplink-l610').addEventListener('click',()=>command('/api/local/v1/wifi/commands',{request_id:requestId('uplink'),action:'select_uplink',use_wifi:false},'正在切换到 L610 4G'));
+  $('uplink-wifi').addEventListener('click',()=>command('/api/local/v1/wifi/commands',{request_id:requestId('uplink'),action:'select_uplink',use_wifi:true},'正在切换到 Wi-Fi 上行'));
+  $('modem-query').addEventListener('click',()=>command('/api/local/v1/modem/commands',{request_id:requestId('modem'),action:'query'},'正在查询 4G 信息'));
+  $('modem-reselect').addEventListener('click',()=>{if(confirm('自动选网会短暂中断 4G 链路，确认继续？'))command('/api/local/v1/modem/commands',{request_id:requestId('reselect'),action:'reselect',confirmed:true},'已提交自动选网')});
+  $('set-bands').addEventListener('click',()=>{const bands=[...document.querySelectorAll('#bands input:checked')].map(el=>Number(el.value));if(!bands.length){showToast('至少选择一个 LTE 频段',true);return}if(confirm(`确认保存 ${bands.map(b=>'B'+b).join('、')}？设备需要断电重启。`))command('/api/local/v1/modem/commands',{request_id:requestId('bands'),action:'set_bands',bands,confirmed:true},'频段设置已提交')});
+  $('restore-bands').addEventListener('click',()=>{if(confirm('确认恢复项目支持的全部频段并立即自动选网？4G 链路会短暂中断。'))command('/api/local/v1/modem/commands',{request_id:requestId('bands'),action:'restore_auto',confirmed:true},'恢复频段与自动选网已提交')});
+  $('set-cell').addEventListener('click',()=>{const earfcn=Number($('earfcn').value),lockPci=$('lock-pci').checked,pci=Number($('pci').value);if(!Number.isInteger(earfcn)||earfcn<0||lockPci&&(!Number.isInteger(pci)||pci<0||pci>503)){showToast('EARFCN 或 PCI 无效',true);return}if(confirm('锁定小区可能导致设备无法注册网络，确认继续？'))command('/api/local/v1/modem/commands',{request_id:requestId('cell'),action:'set_cell_lock',earfcn,pci:lockPci?pci:0,lock_pci:lockPci,confirmed:true},'小区锁定已提交')});
+  $('clear-cell').addEventListener('click',()=>{if(confirm('确认清除小区锁定并重新选网？'))command('/api/local/v1/modem/commands',{request_id:requestId('cell'),action:'clear_cell_lock',confirmed:true},'清除锁定已提交')});
+  $('resolution').addEventListener('change',()=>{state.videoEditing=true});
+  $('fps').addEventListener('change',()=>{state.videoEditing=true});
+  $('save-video').addEventListener('click',async()=>{const settings={request_id:requestId('video'),resolution:$('resolution').value,fps:Number($('fps').value)};state.videoEditing=true;state.videoSubmitted={resolution:settings.resolution,fps:settings.fps};if(!await command('/api/local/v1/video/settings',settings,'视频设置已提交'))state.videoSubmitted=null});
+  window.addEventListener('online',recover);document.addEventListener('visibilitychange',()=>{if(!document.hidden)recover()});boot();
+})();
+</script>
+</body>
+</html>

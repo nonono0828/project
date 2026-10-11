@@ -1,0 +1,39 @@
+# Frontend dependencies and generated output
+node_modules/
+dist/
+dist-windows/
+*.log
+
+# Deployment-specific endpoints
+.env.local
+.env.*.local
+.env.production
+
+# Android generated output and local configuration
+android/.gradle/
+android/**/build/
+android/local.properties
+android/.idea/
+android/app/src/main/assets/public/
+
+# Packages and signing material
+*.apk
+*.aab
+*.jks
+*.keystore
+key.properties
+
+# Windows desktop generated output
+windows/node_modules/
+windows/release*/
+windows/staging*/
+windows/cloud-origin.cjs
+
+# Local branding backups
+android/branding-backup-*/
+
+# Branding drafts that are not part of the released application
+public/brand/
+design/spider-*.png
+public/934f22e3cb753cfb859ee0cd0b190ebe.jpg
+public/a5d680e2e7ed822a93a4dd528b940eaa.jpg

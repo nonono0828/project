@@ -1,0 +1,67 @@
+{
+  "name": "zhixun-jingling-windows",
+  "version": "1.2.12",
+  "private": true,
+  "author": "智巡精灵",
+  "description": "智巡精灵 Windows 桌面客户端",
+  "main": "main.cjs",
+  "scripts": {
+    "test": "node --test ../src/native/localPortalAddress.test.mjs",
+    "build:frontend": "node ../tools/prepare_windows_build.cjs && cd .. && npx vite build --base ./ --outDir windows/staging-v1.2.12 && node tools/verify_windows_build.cjs",
+    "start": "npm run build:frontend && electron .",
+    "build:portable": "npm run build:frontend && electron-builder --win portable --x64"
+  },
+  "devDependencies": {
+    "electron": "43.3.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "cn.hajimi.zhixun.desktop",
+    "productName": "智巡精灵",
+    "artifactName": "zhixun-jingling-v${version}-windows-${arch}-portable.${ext}",
+    "asar": true,
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "grantFileProtocolExtraPrivileges": false,
+      "onlyLoadAppFromAsar": true
+    },
+    "npmRebuild": false,
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "cloud-origin.cjs",
+      "security.cjs",
+      "package.json",
+      "build/icon.ico"
+    ],
+    "extraResources": [
+      {
+        "from": "staging-v1.2.12",
+        "to": "app",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "release-v1.2.12-final"
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "requestedExecutionLevel": "asInvoker"
+    }
+  }
+}

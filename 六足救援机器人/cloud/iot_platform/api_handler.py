@@ -1,0 +1,893 @@
+"""HTTP API routes used by the existing web frontend."""
+
+import asyncio
+import math
+import os
+import time
+
+import aiohttp
+from aiohttp import web
+
+from auth import AuthManager, LoginRateLimiter
+from device_registry import device_registry
+from event_store import event_journal
+from mjpeg_server import get_latest_jpeg
+from udp_sensor_receiver import (
+    get_ap_stream_state,
+    get_gps_data,
+    get_modem_4g_state,
+    get_robot_control_state,
+    get_sensor_data,
+    get_video_fps_state,
+    get_wifi_sta_state,
+    telemetry_online,
+)
+
+
+_cell_location_cache = {}
+_cell_location_inflight = {}
+CELL_LOCATION_CACHE_SECONDS = 300
+UNWIRED_CELL_LOCATION_CACHE_SECONDS = 3600
+CELL_LOCATION_STALE_SECONDS = 7 * 24 * 60 * 60
+JOURNAL_CELL_LOCATION_MAX_AGE_MS = 24 * 60 * 60 * 1000
+UNWIRED_LOCATION_API_URL = 'https://ap1.unwiredlabs.com/v2/process'
+_login_rate_limiter = LoginRateLimiter()
+
+
+def setup_api_routes(app):
+    app.router.add_options('/api/{tail:.*}', api_options)
+    app.router.add_post('/api/auth/login', api_login)
+    app.router.add_get('/api/auth/session', api_auth_session)
+    app.router.add_post('/api/auth/realtime-ticket', api_realtime_ticket)
+    app.router.add_get('/api/video/stream', api_video_stream_info)
+    app.router.add_get('/api/video/snapshot', api_video_snapshot)
+    app.router.add_get('/api/device/status', api_device_status)
+    app.router.add_get('/api/sensor/latest', api_sensor_latest)
+    app.router.add_get('/api/telemetry/latest', api_telemetry_latest)
+    app.router.add_get('/api/modem/cell-location', api_modem_cell_location)
+    app.router.add_get('/api/location/latest', api_location_latest)
+    app.router.add_get('/api/events', api_events)
+    app.router.add_post('/api/events', api_event_upsert)
+    app.router.add_delete('/api/events', api_events_clear)
+    app.router.add_get('/api/devices', api_devices)
+    app.router.add_get('/api/health', api_health)
+    app.router.add_get('/api/ready', api_ready)
+
+
+async def api_options(request):
+    return web.Response(status=204)
+
+
+async def api_login(request):
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({'code': 400, 'message': 'Invalid JSON'}, status=400)
+
+    username = body.get('username', '')
+    password = body.get('password', '')
+    if not isinstance(username, str) or not isinstance(password, str):
+        return web.json_response(
+            {'code': 400, 'message': 'invalid_credentials_format'}, status=400
+        )
+    if not username or len(username) > 64 or not password or len(password) > 256:
+        return web.json_response(
+            {'code': 400, 'message': 'invalid_credentials_format'}, status=400
+        )
+
+    manager = AuthManager.from_env()
+    if not manager.configured:
+        return web.json_response(
+            {'code': 503, 'message': 'auth_not_configured'}, status=503
+        )
+
+    client = request.remote or 'unknown'
+    if _login_rate_limiter.blocked(client):
+        return web.json_response(
+            {'code': 429, 'message': 'too_many_login_attempts'}, status=429
+        )
+
+    result = manager.authenticate(username, password)
+    if result is not None:
+        _login_rate_limiter.clear(client)
+        return web.json_response({'code': 200, 'data': result})
+
+    _login_rate_limiter.record_failure(client)
+    return web.json_response({'code': 401, 'message': 'Invalid username or password'}, status=401)
+
+
+def _bearer_token(request):
+    value = request.headers.get('Authorization', '')
+    prefix = 'Bearer '
+    if not value.startswith(prefix):
+        return None
+    return value[len(prefix):].strip()
+
+
+async def api_auth_session(request):
+    manager = AuthManager.from_env()
+    if not manager.configured:
+        return web.json_response(
+            {'code': 503, 'message': 'auth_not_configured'}, status=503
+        )
+    claims = manager.verify_token(_bearer_token(request))
+    if claims is None:
+        return web.json_response(
+            {'code': 401, 'message': 'invalid_or_expired_token'}, status=401
+        )
+    return web.json_response({
+        'code': 200,
+        'data': {
+            'username': claims['sub'],
+            'issued_at': claims['iat'],
+            'expires_at': claims['exp'],
+        },
+    })
+
+
+async def api_realtime_ticket(request):
+    """Exchange a valid access session for a short realtime handshake ticket."""
+    manager = AuthManager.from_env()
+    if not manager.configured:
+        return web.json_response(
+            {'code': 503, 'message': 'auth_not_configured'}, status=503
+        )
+    claims = request.get('auth_claims')
+    if not isinstance(claims, dict) or claims.get('sub') != manager.username:
+        return web.json_response(
+            {'code': 401, 'message': 'invalid_or_expired_token'}, status=401
+        )
+    return web.json_response(
+        {'code': 200, 'data': manager.issue_realtime_ticket()},
+        headers={'Cache-Control': 'no-store'},
+    )
+
+
+def _external_schemes(request):
+    forwarded_host = request.headers.get('X-Forwarded-Host')
+    host = forwarded_host.split(',')[0].strip() if forwarded_host else request.host
+    forwarded_proto = request.headers.get('X-Forwarded-Proto', request.scheme)
+    secure = forwarded_proto.split(',')[0].strip().lower() == 'https'
+    return host, ('https' if secure else 'http'), ('wss' if secure else 'ws')
+
+
+async def api_video_stream_info(request):
+    host, http_scheme, ws_scheme = _external_schemes(request)
+    device = device_registry.latest()
+    width = device.get('width') if device else None
+    height = device.get('height') if device else None
+    return web.json_response({
+        'code': 200,
+        'data': {
+            'protocol': 'mjpeg',
+            'wsUrl': f'{ws_scheme}://{host}/ws/video',
+            'mjpegUrl': f'{http_scheme}://{host}/live/mjpeg',
+            'resolution': f'{width}x{height}' if width and height else None,
+            'fps': device.get('fps', 0) if device else 0,
+            'codec': 'jpeg',
+            'online': bool(device and device['online']),
+            'deviceId': device.get('device_id') if device else None,
+            'kibPerSecond': device.get('kib_per_second', 0) if device else 0,
+        },
+    })
+
+
+async def api_video_snapshot(request):
+    frame_id, frame, metadata = get_latest_jpeg()
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+    }
+    if frame is None:
+        return web.json_response(
+            {'code': 404, 'message': 'No video frame available'},
+            status=404,
+            headers=headers,
+        )
+    headers['X-Frame-Id'] = str(frame_id)
+    if metadata.get('frame_seq') is not None:
+        headers['X-Frame-Sequence'] = str(metadata['frame_seq'])
+    return web.Response(body=frame, content_type='image/jpeg', headers=headers)
+
+
+async def api_device_status(request):
+    device = device_registry.latest()
+    video_online = bool(device and device['online'])
+    sensor = get_sensor_data()
+    telemetry_is_online = telemetry_online()
+    return web.json_response({
+        'code': 200,
+        'data': {
+            'bw21': {'online': telemetry_is_online, 'ip': None, 'uptime': 0},
+            'esp32': device,
+            'l610': {
+                'online': video_online,
+                'ip': device.get('source_ip') if device else None,
+                # RSSI is not part of ESJP v1; do not invent a value.
+                'signal': None,
+            },
+            'telemetry': {
+                'online': telemetry_is_online,
+                'deviceId': sensor.get('device_id'),
+                'bootId': sensor.get('boot_id'),
+                'sequence': sensor.get('seq'),
+                'ageMs': sensor.get('age_ms'),
+            },
+            'ap_stream': get_ap_stream_state(),
+            'modem_4g': get_modem_4g_state(),
+            'video_fps': get_video_fps_state(),
+            'wifi_sta': get_wifi_sta_state(),
+            'robot_control': get_robot_control_state(),
+            'timestamp': time.time(),
+        },
+    })
+
+
+async def api_sensor_latest(request):
+    return web.json_response({'code': 200, 'data': get_sensor_data()})
+
+
+async def api_telemetry_latest(request):
+    return web.json_response({
+        'code': 200,
+        'data': {
+            'online': telemetry_online(),
+            'sensor': get_sensor_data(),
+            'gps': get_gps_data(),
+        },
+    })
+
+
+def _parse_cell_number(value):
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if not isinstance(value, str):
+        raise ValueError('not a cell number')
+    value = value.strip()
+    if not value:
+        raise ValueError('empty cell number')
+    # L610 +GTCCINFO reports TAC and ECI as hexadecimal fields, including
+    # values that happen to contain digits only. Integers are still accepted
+    # for test/integration callers and retain their numeric value.
+    if value.lower().startswith('0x'):
+        value = value[2:]
+    return int(value, 16)
+
+
+class CellLocationError(Exception):
+    def __init__(self, status, message, **details):
+        super().__init__(message)
+        self.status = status
+        self.message = message
+        self.details = details
+
+
+def _cell_error_response(error):
+    return web.json_response({
+        'code': error.status,
+        'message': error.message,
+        **error.details,
+    }, status=error.status)
+
+
+def _validated_cell_entries(state, limit):
+    cells = state.get('cells') if isinstance(state, dict) else None
+    if not isinstance(cells, list):
+        cells = []
+    ordered = sorted(
+        (cell for cell in cells if isinstance(cell, dict)),
+        key=lambda item: not bool(item.get('serving')),
+    )
+    serving = next((cell for cell in ordered if cell.get('serving')), None)
+    if serving is None:
+        raise CellLocationError(409, 'serving_cell_unavailable')
+
+    entries = []
+    serving_identity = None
+    seen = set()
+    for cell in ordered:
+        try:
+            mcc = cell.get('mcc')
+            mnc = cell.get('mnc')
+            if (not isinstance(mcc, int) or isinstance(mcc, bool)
+                    or not 0 <= mcc <= 999
+                    or not isinstance(mnc, int) or isinstance(mnc, bool)
+                    or not 0 <= mnc <= 999):
+                raise ValueError('invalid mobile network identity')
+            cell_id = _parse_cell_number(cell.get('cell_id'))
+            tac = _parse_cell_number(cell.get('tac'))
+            if not 0 <= cell_id <= 0x0FFFFFFF or not 0 <= tac <= 0xFFFF:
+                raise ValueError('cell identity out of range')
+        except (TypeError, ValueError):
+            if cell is serving:
+                raise CellLocationError(422, 'invalid_serving_cell_identity')
+            # One malformed neighbor must not prevent use of the serving cell.
+            continue
+
+        identity = (mcc, mnc, tac, cell_id)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        entries.append((cell, identity))
+        if cell is serving:
+            serving_identity = identity
+        if len(entries) >= limit:
+            break
+
+    if serving_identity is None or not entries:
+        raise CellLocationError(422, 'invalid_serving_cell_identity')
+    return serving, entries
+
+
+def _build_cell_geolocation_request(state):
+    """Build the existing Google Geolocation API request."""
+    serving, entries = _validated_cell_entries(state, 8)
+    identities = tuple(identity for _, identity in entries)
+    serving_identity = identities[0]
+    towers = [{
+        'cellId': identity[3],
+        'locationAreaCode': identity[2],
+        'mobileCountryCode': identity[0],
+        'mobileNetworkCode': identity[1],
+        'age': 0,
+    } for _, identity in entries]
+    # GTCCINFO's reported level fields are not documented here as dBm.
+    # Sending an invented signalStrength can make provider results worse.
+    payload = {
+        'homeMobileCountryCode': serving_identity[0],
+        'homeMobileNetworkCode': serving_identity[1],
+        'radioType': 'lte',
+        'considerIp': False,
+        'cellTowers': towers,
+    }
+    return serving, payload, identities
+
+
+def _build_unwired_geolocation_request(state, token):
+    """Build a LocationAPI v2 request without guessing modem signal units."""
+    serving, entries = _validated_cell_entries(state, 7)
+    identities = tuple(identity for _, identity in entries)
+    serving_identity = identities[0]
+    cells = []
+    for source, identity in entries:
+        cell = {
+            'radio': 'lte',
+            'mcc': identity[0],
+            'mnc': identity[1],
+            'lac': identity[2],
+            'cid': identity[3],
+        }
+        pci = source.get('pci')
+        if (isinstance(pci, int) and not isinstance(pci, bool)
+                and 0 <= pci <= 503):
+            cell['psc'] = pci
+        # Do not send GTCCINFO's raw level as LocationAPI `signal`: its dBm
+        # conversion has not been confirmed from the L610 protocol manual.
+        cells.append(cell)
+
+    payload = {
+        'token': token,
+        'radio': 'lte',
+        'mcc': serving_identity[0],
+        'mnc': serving_identity[1],
+        'cells': cells,
+        'address': 0,
+    }
+    return serving, payload, identities
+
+
+def _normalized_cell_metadata(serving):
+    return {
+        'mcc': serving.get('mcc'),
+        'mnc': serving.get('mnc'),
+        'tac': serving.get('tac'),
+        'cell_id': serving.get('cell_id'),
+        'earfcn': serving.get('earfcn'),
+        'pci': serving.get('pci'),
+        'band': serving.get('band'),
+    }
+
+
+def _valid_location_coordinate(value, minimum, maximum):
+    return (
+        isinstance(value, (int, float)) and not isinstance(value, bool)
+        and math.isfinite(value) and minimum <= value <= maximum
+    )
+
+
+def _parse_unwired_geolocation_response(result, serving, identities):
+    if not isinstance(result, dict):
+        raise CellLocationError(502, 'cell_geolocation_invalid_response')
+    if result.get('status') != 'ok':
+        message = str(result.get('message', '')).strip().lower()
+        if message == 'invalid token' or message == 'inactive device':
+            raise CellLocationError(503, 'cell_geolocation_auth_failed')
+        if message == 'no matches found':
+            raise CellLocationError(404, 'cell_geolocation_no_match')
+        if (message in ('no slots available', 'quota exhausted')
+                or message.startswith('token balance over;')):
+            raise CellLocationError(429, 'cell_geolocation_quota_exhausted')
+        raise CellLocationError(502, 'cell_geolocation_lookup_failed')
+
+    lat = result.get('lat')
+    lng = result.get('lon')
+    if (not _valid_location_coordinate(lat, -90, 90)
+            or not _valid_location_coordinate(lng, -180, 180)):
+        raise CellLocationError(502, 'cell_geolocation_invalid_response')
+    accuracy = result.get('accuracy')
+    if (not isinstance(accuracy, (int, float)) or isinstance(accuracy, bool)
+            or not math.isfinite(accuracy) or accuracy < 0):
+        accuracy = None
+
+    fallback = result.get('fallback')
+    if not isinstance(fallback, str) or not fallback:
+        fallback = None
+    aged = result.get('aged')
+    if not isinstance(aged, (bool, int)):
+        aged = None
+    return {
+        'lat': lat,
+        'lng': lng,
+        'accuracy': accuracy,
+        'provider': 'unwired',
+        'cells_used': len(identities),
+        'fallback': fallback,
+        'aged': aged,
+        'cell': _normalized_cell_metadata(serving),
+    }
+
+
+def _cell_location_cache_ttl(provider):
+    default = (UNWIRED_CELL_LOCATION_CACHE_SECONDS
+               if provider == 'unwired' else CELL_LOCATION_CACHE_SECONDS)
+    value = os.getenv('CELL_LOCATION_CACHE_SECONDS', '').strip()
+    if not value:
+        return default
+    try:
+        seconds = int(value)
+    except ValueError:
+        return default
+    return seconds if 30 <= seconds <= 86400 else default
+
+
+def _cell_location_cache_key(provider, identities):
+    """Cache by serving LTE cell, not volatile neighbor scan results."""
+    return (provider, identities[0])
+
+
+async def _fetch_cell_location(provider, credential, payload, serving,
+                               identities):
+    timeout = aiohttp.ClientTimeout(total=10)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            if provider == 'google':
+                request = session.post(
+                    'https://www.googleapis.com/geolocation/v1/geolocate',
+                    params={'key': credential},
+                    json=payload,
+                )
+            else:
+                request = session.post(UNWIRED_LOCATION_API_URL, json=payload)
+            async with request as response:
+                result = await response.json(content_type=None)
+                # LocationAPI may return a useful status:error JSON body with
+                # a non-200 status. Parse that body before using the generic
+                # HTTP fallback so quota/auth/no-match remain distinguishable.
+                if provider == 'unwired':
+                    if (isinstance(result, dict)
+                            and result.get('status') == 'error'):
+                        return _parse_unwired_geolocation_response(
+                            result, serving, identities
+                        )
+                    if response.status != 200:
+                        raise CellLocationError(
+                            502, 'cell_geolocation_lookup_failed',
+                            provider_status=response.status,
+                        )
+                elif response.status != 200:
+                    raise CellLocationError(
+                        502, 'cell_geolocation_lookup_failed',
+                        provider_status=response.status,
+                    )
+    except CellLocationError:
+        raise
+    except (aiohttp.ClientError, asyncio.TimeoutError):
+        raise CellLocationError(502, 'cell_geolocation_unreachable')
+    except (TypeError, ValueError):
+        raise CellLocationError(502, 'cell_geolocation_invalid_response')
+
+    if provider == 'unwired':
+        return _parse_unwired_geolocation_response(
+            result, serving, identities
+        )
+
+    location = result.get('location') if isinstance(result, dict) else None
+    lat = location.get('lat') if isinstance(location, dict) else None
+    lng = location.get('lng') if isinstance(location, dict) else None
+    if (not _valid_location_coordinate(lat, -90, 90)
+            or not _valid_location_coordinate(lng, -180, 180)):
+        raise CellLocationError(502, 'cell_geolocation_invalid_response')
+    accuracy = result.get('accuracy') if isinstance(result, dict) else None
+    if (not isinstance(accuracy, (int, float)) or isinstance(accuracy, bool)
+            or not math.isfinite(accuracy) or accuracy < 0):
+        accuracy = None
+    return {
+        'lat': lat,
+        'lng': lng,
+        'accuracy': accuracy,
+        'provider': 'google',
+        'cells_used': len(identities),
+        'cell': _normalized_cell_metadata(serving),
+    }
+
+
+async def _fetch_and_cache_cell_location(cache_key, provider, credential,
+                                         payload, serving, identities):
+    data = await _fetch_cell_location(
+        provider, credential, payload, serving, identities
+    )
+    # Keep a small keyed cache instead of clearing every entry: during a cell
+    # handover an older in-flight lookup must not erase the newer cell result.
+    if cache_key not in _cell_location_cache and len(_cell_location_cache) >= 16:
+        oldest_key = min(
+            _cell_location_cache,
+            key=lambda key: _cell_location_cache[key]['cached_at'],
+        )
+        _cell_location_cache.pop(oldest_key, None)
+    _cell_location_cache[cache_key] = {
+        'cached_at': time.monotonic(),
+        'data': data,
+    }
+    return data
+
+
+def _clear_cell_location_inflight(cache_key, task):
+    if _cell_location_inflight.get(cache_key) is task:
+        _cell_location_inflight.pop(cache_key, None)
+
+
+async def _resolve_cell_location():
+    state = get_modem_4g_state()
+    if not state.get('online'):
+        raise CellLocationError(409, 'device_offline')
+
+    provider = os.getenv('CELL_GEOLOCATION_PROVIDER', 'google').strip().lower()
+    if provider == 'google':
+        credential = (
+            os.getenv('GOOGLE_GEOLOCATION_API_KEY', '').strip()
+            or os.getenv('CELL_GEOLOCATION_API_KEY', '').strip()
+        )
+        if not credential:
+            raise CellLocationError(
+                503,
+                'cell_geolocation_not_configured',
+                required=[
+                    'CELL_GEOLOCATION_PROVIDER=google',
+                    'GOOGLE_GEOLOCATION_API_KEY or CELL_GEOLOCATION_API_KEY',
+                ],
+            )
+        serving, payload, identities = _build_cell_geolocation_request(state)
+    elif provider == 'unwired':
+        credential = os.getenv('UNWIRED_LOCATION_API_TOKEN', '').strip()
+        if not credential:
+            raise CellLocationError(
+                503,
+                'cell_geolocation_not_configured',
+                required=[
+                    'CELL_GEOLOCATION_PROVIDER=unwired',
+                    'UNWIRED_LOCATION_API_TOKEN',
+                ],
+            )
+        serving, payload, identities = _build_unwired_geolocation_request(
+            state, credential
+        )
+    else:
+        raise CellLocationError(
+            503,
+            'cell_geolocation_not_configured',
+            required=['CELL_GEOLOCATION_PROVIDER=google or unwired'],
+        )
+
+    # Keep neighbor cells in the provider request, but do not use them to
+    # invalidate the paid lookup cache. Neighbor scans commonly fluctuate
+    # while the serving cell and the resulting coarse location are unchanged.
+    cache_key = _cell_location_cache_key(provider, identities)
+    cached = _cell_location_cache.get(cache_key)
+    if (cached and time.monotonic() - cached['cached_at']
+            <= _cell_location_cache_ttl(provider)):
+        return cached['data']
+
+    task = _cell_location_inflight.get(cache_key)
+    if task is None:
+        task = asyncio.create_task(_fetch_and_cache_cell_location(
+            cache_key, provider, credential, payload, serving, identities
+        ))
+        _cell_location_inflight[cache_key] = task
+        task.add_done_callback(
+            lambda done, key=cache_key: _clear_cell_location_inflight(key, done)
+        )
+    # One disconnected browser request must not cancel the provider request
+    # shared by other tabs that are waiting for the same cell identity.
+    try:
+        return await asyncio.shield(task)
+    except CellLocationError as error:
+        # A temporary provider outage must not erase a location that was
+        # successfully resolved for the same serving cell. The stale marker is
+        # surfaced to the UI so it is never mistaken for a live lookup.
+        age = (
+            time.monotonic() - cached['cached_at']
+            if cached is not None else None
+        )
+        if (
+            error.message == 'cell_geolocation_unreachable'
+            and cached is not None
+            and age is not None
+            and age <= CELL_LOCATION_STALE_SECONDS
+        ):
+            stale = dict(cached['data'])
+            stale['stale'] = True
+            stale['stale_age_seconds'] = round(age, 1)
+            return stale
+        raise
+
+
+def _latest_journal_cell_location():
+    """Return a bounded last-known cell result from the durable event journal."""
+    now_ms = int(time.time() * 1000)
+    for event in event_journal.snapshot(limit=200).get('events', []):
+        location = event.get('location')
+        if not isinstance(location, dict) or location.get('source') != 'cell':
+            continue
+        timestamp = event.get('timestamp')
+        if not isinstance(timestamp, (int, float)):
+            continue
+        age_ms = max(0, now_ms - int(timestamp))
+        if age_ms > JOURNAL_CELL_LOCATION_MAX_AGE_MS:
+            continue
+        lat = location.get('lat')
+        lng = location.get('lng')
+        if (
+            not _valid_location_coordinate(lat, -90, 90)
+            or not _valid_location_coordinate(lng, -180, 180)
+        ):
+            continue
+        return {
+            'lat': lat,
+            'lng': lng,
+            'accuracy': location.get('accuracy'),
+            'provider': 'event_journal',
+            'cells_used': 0,
+            'stale': True,
+            'stale_age_seconds': round(age_ms / 1000, 1),
+            'cell': None,
+        }
+    return None
+
+
+async def api_modem_cell_location(request):
+    """Resolve the current LTE serving cell without exposing the provider key."""
+    try:
+        data = await _resolve_cell_location()
+    except CellLocationError as error:
+        return _cell_error_response(error)
+    return web.json_response({'code': 200, 'data': data})
+
+
+def _valid_gps_coordinate(gps):
+    lat = gps.get('lat') if isinstance(gps, dict) else None
+    lng = gps.get('lng') if isinstance(gps, dict) else None
+    return (
+        gps.get('online') is True
+        and isinstance(lat, (int, float)) and not isinstance(lat, bool)
+        and math.isfinite(lat) and -90 <= lat <= 90
+        and isinstance(lng, (int, float)) and not isinstance(lng, bool)
+        and math.isfinite(lng) and -180 <= lng <= 180
+    )
+
+
+def _haversine_distance_m(lat1, lng1, lat2, lng2):
+    radius_m = 6371008.8
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lng2 - lng1)
+    a = (math.sin(dphi / 2) ** 2
+         + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2)
+    return radius_m * 2 * math.atan2(math.sqrt(a), math.sqrt(max(0.0, 1 - a)))
+
+
+def _compose_location_result(gps, cell_enabled, cell=None, cell_error=None):
+    gps_available = _valid_gps_coordinate(gps)
+    gps_data = {
+        'available': gps_available,
+        'lat': gps.get('lat') if gps_available else None,
+        'lng': gps.get('lng') if gps_available else None,
+        'satellites': gps.get('satellites') if gps_available else None,
+        'speed': gps.get('speed') if gps_available else None,
+        'heading': gps.get('heading') if gps_available else None,
+        'received_at': gps.get('received_at') if gps_available else None,
+        'age_ms': gps.get('age_ms') if gps_available else None,
+    }
+    selected = None
+    source = 'none'
+    validation = None
+    if gps_available:
+        source = 'gps'
+        selected = {
+            'lat': gps_data['lat'],
+            'lng': gps_data['lng'],
+            'source': 'gps',
+            'accuracy': None,
+            'heading': gps_data['heading'],
+            'speed': gps_data['speed'],
+            'satellites': gps_data['satellites'],
+        }
+        if cell is not None:
+            distance = _haversine_distance_m(
+                gps_data['lat'], gps_data['lng'], cell['lat'], cell['lng']
+            )
+            accuracy = cell.get('accuracy')
+            validation = {
+                'gps_primary': True,
+                'distance_m': round(distance, 1),
+                'cell_accuracy_m': accuracy,
+                'within_cell_accuracy': (
+                    distance <= accuracy if isinstance(accuracy, (int, float)) else None
+                ),
+            }
+    elif cell is not None:
+        source = 'cell'
+        selected = {
+            'lat': cell['lat'],
+            'lng': cell['lng'],
+            'source': 'cell',
+            'accuracy': cell.get('accuracy'),
+            'heading': None,
+            'speed': None,
+            'satellites': None,
+        }
+    return {
+        'online': gps.get('online') is True,
+        'cell_enabled': cell_enabled,
+        'source': source,
+        'selected': selected,
+        'gps': gps_data,
+        'cell': cell,
+        'validation': validation,
+        'cell_error': cell_error,
+    }
+
+
+async def api_location_latest(request):
+    enabled_value = request.query.get('cell_enabled', '0').strip().lower()
+    if enabled_value in ('1', 'true'):
+        cell_enabled = True
+    elif enabled_value in ('0', 'false'):
+        cell_enabled = False
+    else:
+        return web.json_response(
+            {'code': 400, 'message': 'invalid_cell_enabled'}, status=400
+        )
+
+    gps = get_gps_data()
+    cell = None
+    cell_error = None
+    if cell_enabled:
+        try:
+            cell = await _resolve_cell_location()
+        except CellLocationError as error:
+            # GPS can remain fully usable when a third-party cell lookup is
+            # unavailable, so surface the stable error code without failing
+            # the entire positioning endpoint.
+            cell_error = error.message
+            cell = _latest_journal_cell_location()
+    return web.json_response({
+        'code': 200,
+        'data': _compose_location_result(gps, cell_enabled, cell, cell_error),
+    })
+
+
+async def record_current_location_event(interval_seconds=300):
+    gps = get_gps_data()
+    modem = get_modem_4g_state()
+    location = None
+    source = None
+    if _valid_gps_coordinate(gps):
+        source = 'gps'
+        location = {'lat': gps['lat'], 'lng': gps['lng'], 'source': source}
+    else:
+        try:
+            cell = await _resolve_cell_location()
+        except CellLocationError:
+            return None
+        source = 'cell'
+        location = {
+            'lat': cell['lat'],
+            'lng': cell['lng'],
+            'source': source,
+            'accuracy': cell.get('accuracy'),
+        }
+
+    now_ms = int(time.time() * 1000)
+    device_id = gps.get('device_id') or modem.get('device_id') or 'unknown'
+    bucket = int(time.time() // interval_seconds)
+    return event_journal.upsert({
+        'id': f'location-{device_id}-{bucket}',
+        'type': 'location',
+        'timestamp': now_ms,
+        'deviceId': device_id,
+        'bootId': gps.get('boot_id') or modem.get('boot_id'),
+        'sequence': gps.get('seq'),
+        'dedupeKey': f'location:{device_id}:{bucket}',
+        'success': True,
+        'operation': '定时位置记录',
+        'message': '位置来源：GPS' if source == 'gps' else '位置来源：基站定位',
+        'location': location,
+        'snapshotStatus': 'none',
+    })
+
+
+async def periodic_location_event_recorder(stop_event):
+    try:
+        interval = int(os.getenv('EVENT_LOCATION_INTERVAL_SECONDS', '300'))
+    except ValueError:
+        interval = 300
+    interval = max(60, interval)
+    while True:
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=interval)
+            return
+        except asyncio.TimeoutError:
+            try:
+                await record_current_location_event(interval)
+            except Exception as error:
+                print(f'[EVENTS] periodic location record failed: {error}', flush=True)
+
+
+async def api_events(request):
+    raw_limit = request.query.get('limit', '200')
+    try:
+        limit = max(1, min(int(raw_limit), 200))
+    except (TypeError, ValueError):
+        return web.json_response({'code': 400, 'message': 'invalid_limit'}, status=400)
+    return web.json_response({'code': 200, 'data': event_journal.snapshot(limit)})
+
+
+async def api_event_upsert(request):
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({'code': 400, 'message': 'invalid_json'}, status=400)
+    try:
+        event = event_journal.upsert(body)
+    except ValueError as error:
+        return web.json_response({'code': 400, 'message': str(error)}, status=400)
+    return web.json_response({'code': 200, 'data': event})
+
+
+async def api_events_clear(request):
+    return web.json_response({'code': 200, 'data': event_journal.clear()})
+
+
+async def api_devices(request):
+    return web.json_response({'code': 200, 'data': device_registry.snapshot()})
+
+
+async def api_health(request):
+    runtime = request.app.get('runtime', {})
+    started = runtime.get('started_monotonic', time.monotonic())
+    devices = device_registry.snapshot()
+    return web.json_response({
+        'status': 'ok',
+        'uptimeSeconds': round(time.monotonic() - started, 3),
+        'devicesOnline': sum(1 for item in devices if item['online']),
+    })
+
+
+async def api_ready(request):
+    ready = bool(request.app.get('runtime', {}).get('listeners_ready', False))
+    return web.json_response(
+        {'status': 'ready' if ready else 'starting'},
+        status=200 if ready else 503,
+    )

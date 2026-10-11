@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">智巡精灵</string>
+    <string name="title_activity_main">智巡精灵</string>
+    <string name="package_name">cn.hajimi.spider001</string>
+    <string name="custom_url_scheme">cn.hajimi.spider001</string>
+</resources>

@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: blob:; worker-src 'self' blob:">
+  <title>Hydrogel Hand</title>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </span>
+        <div>
+          <strong>HYDROGEL HAND</strong>
+          <span>3×3 PRESSURE CONTROL</span>
+        </div>
+      </div>
+      <div class="top-actions">
+        <div id="deviceBadge" class="device-badge" data-state="offline">
+          <span class="status-dot"></span>
+          <span id="deviceStatus">模拟模式</span>
+        </div>
+        <button id="thumbSettingsButton" class="icon-button" type="button" title="拇指校准" aria-label="打开拇指校准"><span data-lucide="settings-2"></span></button>
+        <button id="resetViewButton" class="icon-button" type="button" title="复位视角" aria-label="复位视角"><span data-lucide="rotate-ccw"></span></button>
+        <button id="fullscreenButton" class="icon-button" type="button" title="全屏" aria-label="全屏"><span data-lucide="maximize-2"></span></button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="stage" aria-label="三维机械手">
+        <canvas id="handCanvas"></canvas>
+        <div id="loadingState" class="loading-state">
+          <span class="loading-bar"></span>
+          <strong>加载机械手模型</strong>
+          <span id="loadingProgress">0%</span>
+        </div>
+        <div class="gesture-readout">
+          <span>当前姿态</span>
+          <strong id="gestureName">自然放松</strong>
+          <b id="gestureCode">GESTURE 09</b>
+        </div>
+        <div class="pressure-readout">
+          <div>
+            <span>压力变化</span>
+            <strong id="pressureValue">0</strong>
+          </div>
+          <div class="pressure-track" aria-hidden="true"><i id="pressureFill"></i></div>
+        </div>
+      </section>
+
+      <aside class="control-panel">
+        <section class="control-section mode-section">
+          <div class="section-heading">
+            <h2>控制来源</h2>
+          </div>
+          <div class="segmented" role="group" aria-label="控制来源">
+            <button class="mode-button active" type="button" data-mode="simulation">模拟</button>
+            <button class="mode-button" type="button" data-mode="hardware">硬件</button>
+          </div>
+        </section>
+
+        <section id="serialSection" class="control-section serial-section" hidden>
+          <div class="section-heading">
+            <h2>串口设备</h2>
+            <button id="refreshPortsButton" class="icon-button small" type="button" title="刷新串口" aria-label="刷新串口"><span data-lucide="refresh-cw"></span></button>
+          </div>
+          <div class="serial-row">
+            <select id="portSelect" aria-label="串口设备">
+              <option value="">未发现串口</option>
+            </select>
+            <button id="connectButton" class="command-button" type="button">
+              <span data-lucide="plug"></span>
+              <span>连接</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="control-section matrix-section">
+          <div class="section-heading">
+            <h2>手势矩阵</h2>
+            <span id="inputSourceLabel">数字键 1–9</span>
+          </div>
+          <div id="gestureGrid" class="gesture-grid">
+            <button type="button" data-key="1"><b>1</b><span>张开</span></button>
+            <button type="button" data-key="2"><b>2</b><span>握拳</span></button>
+            <button type="button" data-key="3"><b>3</b><span>胜利</span></button>
+            <button type="button" data-key="4"><b>4</b><span>点赞</span></button>
+            <button type="button" data-key="5"><b>5</b><span>OK</span></button>
+            <button type="button" data-key="6"><b>6</b><span>指向</span></button>
+            <button type="button" data-key="7"><b>7</b><span>捏合</span></button>
+            <button type="button" data-key="8"><b>8</b><span>摇滚</span></button>
+            <button class="active" type="button" data-key="9"><b>9</b><span>放松</span></button>
+          </div>
+        </section>
+
+        <section class="control-section behavior-section">
+          <div class="section-heading">
+            <h2>松开行为</h2>
+          </div>
+          <div class="segmented" role="group" aria-label="松开行为">
+            <button class="release-button active" type="button" data-release="hold">保持姿态</button>
+            <button class="release-button" type="button" data-release="reset">自动复位</button>
+          </div>
+          <label class="range-control" for="speedRange">
+            <span>动作速度</span>
+            <output id="speedOutput">中速</output>
+            <input id="speedRange" type="range" min="2" max="12" step="1" value="7">
+          </label>
+        </section>
+
+        <section class="control-section event-section">
+          <div class="section-heading">
+            <h2>最近事件</h2>
+            <span id="eventTime">--:--:--</span>
+          </div>
+          <div id="eventLine" class="event-line">系统就绪，等待输入</div>
+        </section>
+      </aside>
+    </main>
+
+    <div id="thumbSettingsBackdrop" class="settings-backdrop" hidden>
+      <section class="settings-drawer" role="dialog" aria-modal="true" aria-labelledby="thumbSettingsTitle">
+        <header class="settings-header">
+          <div>
+            <span class="settings-eyebrow">ALL GESTURES</span>
+            <h2 id="thumbSettingsTitle">拇指全局校准</h2>
+          </div>
+          <button id="closeThumbSettingsButton" class="icon-button" type="button" title="关闭" aria-label="关闭拇指校准"><span data-lucide="x"></span></button>
+        </header>
+
+        <p class="settings-help">校准值以握拳为基准。开启同步后，调整量会叠加到全部手势，同时保留每种手势原有的拇指差异。所有参数实时预览并自动保存。</p>
+
+        <div class="calibration-toolbar">
+          <label class="preview-select" for="thumbPreviewGestureSelect">
+            <span>预览手势</span>
+            <select id="thumbPreviewGestureSelect">
+              <option value="1">1 张开</option>
+              <option value="2" selected>2 握拳</option>
+              <option value="3">3 胜利</option>
+              <option value="4">4 点赞</option>
+              <option value="5">5 OK</option>
+              <option value="6">6 指向</option>
+              <option value="7">7 捏合</option>
+              <option value="8">8 摇滚</option>
+              <option value="9">9 放松</option>
+            </select>
+          </label>
+          <label class="sync-option" for="syncThumbAllToggle">
+            <input id="syncThumbAllToggle" type="checkbox" checked>
+            <span><b>同步全部手势</b><small>推荐：保持各手势差异并统一校正方向</small></span>
+          </label>
+        </div>
+
+        <div id="thumbCalibrationControls" class="calibration-controls">
+          <label class="calibration-control" for="thumbBaseRange">
+            <span><b>根关节方向</b><small>控制拇指整体指向</small></span>
+            <output id="thumbBaseOutput">-80°</output>
+            <input id="thumbBaseRange" data-calibration="base" type="range" min="-180" max="180" step="1" value="-80">
+          </label>
+          <label class="calibration-control" for="thumbMiddleRange">
+            <span><b>第二关节弯曲</b><small>调整拇指中段角度</small></span>
+            <output id="thumbMiddleOutput">-40°</output>
+            <input id="thumbMiddleRange" data-calibration="middle" type="range" min="-90" max="90" step="1" value="-40">
+          </label>
+          <label class="calibration-control" for="thumbTipRange">
+            <span><b>末关节弯曲</b><small>调整拇指尖方向</small></span>
+            <output id="thumbTipOutput">-5°</output>
+            <input id="thumbTipRange" data-calibration="tip" type="range" min="-90" max="90" step="1" value="-5">
+          </label>
+          <label class="calibration-control" for="thumbSpreadRange">
+            <span><b>内收 / 外展</b><small>移动到拳面或掌外</small></span>
+            <output id="thumbSpreadOutput">-45°</output>
+            <input id="thumbSpreadRange" data-calibration="spread" type="range" min="-90" max="90" step="1" value="-45">
+          </label>
+          <label class="calibration-control important" for="thumbTwistRange">
+            <span><b>掌面翻转</b><small>让拇指掌面朝向四指</small></span>
+            <output id="thumbTwistOutput">0°</output>
+            <input id="thumbTwistRange" data-calibration="twist" type="range" min="-90" max="90" step="1" value="0">
+          </label>
+          <label class="calibration-control" for="thumbLiftRange">
+            <span><b>上下位置</b><small>整体抬高或降低拇指</small></span>
+            <output id="thumbLiftOutput">+0.6</output>
+            <input id="thumbLiftRange" data-calibration="lift" type="range" min="-2" max="2" step="0.1" value="0.6">
+          </label>
+          <label class="calibration-control" for="thumbDepthRange">
+            <span><b>前后位置</b><small>贴近或离开四指表面</small></span>
+            <output id="thumbDepthOutput">0.0</output>
+            <input id="thumbDepthRange" data-calibration="depth" type="range" min="-2" max="2" step="0.1" value="0">
+          </label>
+        </div>
+
+        <footer class="settings-footer">
+          <div class="autosave-state"><span></span>参数已自动保存</div>
+          <div class="settings-actions">
+            <button id="resetThumbCalibrationButton" class="secondary-button" type="button">恢复推荐值</button>
+            <button id="finishThumbSettingsButton" class="command-button" type="button">完成</button>
+          </div>
+        </footer>
+      </section>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

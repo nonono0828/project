@@ -1,0 +1,276 @@
+#include "stm32f10x.h"
+#include "delay.h"
+#include "oled.h"
+#include "led.h"
+#include "stm32f10x_gpio.h"
+#include "stm32f10x_rcc.h"
+#include "stm32f10x_usart.h"
+#include "misc.h"
+
+#define MATRIX_SIZE  3
+
+static GPIO_TypeDef * const g_rows_port[MATRIX_SIZE] = {GPIOA, GPIOA, GPIOA};
+static const u16 g_rows_pin[MATRIX_SIZE] = {GPIO_Pin_0, GPIO_Pin_1, GPIO_Pin_2};
+static GPIO_TypeDef * const g_cols_port[MATRIX_SIZE] = {GPIOA, GPIOA, GPIOA};
+static const u16 g_cols_pin[MATRIX_SIZE] = {GPIO_Pin_4, GPIO_Pin_5, GPIO_Pin_6};
+
+typedef struct
+{
+    u8        c1;
+    u8        c2;
+    u8        digit;
+    const char *name;
+} Gesture;
+
+const Gesture g_gestures[9] =
+{
+    {2, 3, 0,   "ROCK"},
+    {4, 5, 0,   "SCISSOR"},
+    {6, 0, 0,   "PAPER"},
+    {7, 8, '1', "GEST1"},
+    {7, 8, '2', "GEST2"},
+    {7, 8, '3', "GEST3"},
+    {7, 8, '4', "GEST4"},
+    {7, 8, '5', "GEST5"},
+    {7, 8, '6', "GEST6"}
+};
+
+void ShowGestureScreen(u8 has_press, u8 idx)
+{
+    const Gesture *g = &g_gestures[idx];
+    u8 x;
+
+    OLED_Clear();
+
+    if (has_press)
+    {
+        u8 row = idx / 3 + 1;
+        u8 col = idx % 3 + 1;
+
+        OLED_ShowString(0, 0, "CELL", 16, 1);
+        OLED_ShowNum(40, 0, row, 1, 16, 1);
+        OLED_ShowString(56, 0, "-", 16, 1);
+        OLED_ShowNum(64, 0, col, 1, 16, 1);
+    }
+    else
+    {
+        OLED_ShowString(0, 0, "3X3 GESTURE", 16, 1);
+    }
+
+    OLED_ShowChinese(0, 16, 7, 16, 1);
+    OLED_ShowChinese(16, 16, 8, 16, 1);
+    OLED_ShowChar(32, 16, ':', 16, 1);
+
+    if (has_press)
+    {
+        x = (g->c2) ? 40 : 56;
+        OLED_ShowChinese(x, 16, g->c1, 16, 1);
+        if (g->c2)
+        {
+            OLED_ShowChinese(x + 16, 16, g->c2, 16, 1);
+        }
+        if (g->digit)
+        {
+            OLED_ShowChar(x + 32, 16, g->digit, 16, 1);
+        }
+    }
+    else
+    {
+        OLED_ShowString(40, 16, "----", 16, 1);
+    }
+
+    if (has_press)
+    {
+        OLED_ShowString(0, 48, "PRESSED", 16, 1);
+    }
+    else
+    {
+        OLED_ShowString(0, 48, "WAIT PRESS", 16, 1);
+    }
+    OLED_Refresh();
+}
+
+void DebugUART_Init(void)
+{
+    GPIO_InitTypeDef GPIO_InitStructure;
+    USART_InitTypeDef USART_InitStructure;
+
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+    USART_InitStructure.USART_BaudRate = 115200;
+    USART_InitStructure.USART_WordLength = USART_WordLength_8b;
+    USART_InitStructure.USART_StopBits = USART_StopBits_1;
+    USART_InitStructure.USART_Parity = USART_Parity_No;
+    USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+    USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
+    USART_Init(USART2, &USART_InitStructure);
+
+    USART_Cmd(USART2, ENABLE);
+}
+
+void Debug_PutChar(u8 c)
+{
+    while (!(USART2->SR & USART_SR_TXE));
+    USART2->DR = c;
+}
+
+void Debug_SendString(const char *s)
+{
+    while (*s)
+    {
+        Debug_PutChar((u8)*s);
+        s++;
+    }
+}
+
+void Debug_SendNum(u16 n)
+{
+    u8 buf[5];
+    u8 i = 0;
+
+    if (n == 0)
+    {
+        Debug_PutChar('0');
+        return;
+    }
+    while (n && i < 5)
+    {
+        buf[i++] = (u8)('0' + n % 10);
+        n /= 10;
+    }
+    while (i)
+    {
+        Debug_PutChar(buf[--i]);
+    }
+}
+
+void Matrix_Init(void)
+{
+    GPIO_InitTypeDef GPIO_InitStructure;
+    u8 i;
+
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    for (i = 0; i < MATRIX_SIZE; i++)
+    {
+        GPIO_InitStructure.GPIO_Pin = g_rows_pin[i];
+        GPIO_Init(g_rows_port[i], &GPIO_InitStructure);
+    }
+
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
+    for (i = 0; i < MATRIX_SIZE; i++)
+    {
+        GPIO_InitStructure.GPIO_Pin = g_cols_pin[i];
+        GPIO_Init(g_cols_port[i], &GPIO_InitStructure);
+    }
+
+    for (i = 0; i < MATRIX_SIZE; i++)
+    {
+        GPIO_SetBits(g_rows_port[i], g_rows_pin[i]);
+    }
+}
+
+u8 Matrix_Scan(void)
+{
+    u8 i, j;
+
+    for (i = 0; i < MATRIX_SIZE; i++)
+    {
+        GPIO_ResetBits(g_rows_port[i], g_rows_pin[i]);
+        delay_us(200);
+
+        for (j = 0; j < MATRIX_SIZE; j++)
+        {
+            if (GPIO_ReadInputDataBit(g_cols_port[j], g_cols_pin[j]) == 0)
+            {
+                GPIO_SetBits(g_rows_port[i], g_rows_pin[i]);
+                return (u8)(i * 3 + j);
+            }
+        }
+
+        GPIO_SetBits(g_rows_port[i], g_rows_pin[i]);
+    }
+
+    return 0xFF;
+}
+
+int main(void)
+{
+    u8 idx;
+    u8 last_idx = 0xFF;
+    u8 display_active = 0;
+    u8 display_idx = 0xFF;
+    u8 stable = 0;
+    u8 release_cnt = 0;
+
+    SystemInit();
+    delay_init(72);
+
+    DebugUART_Init();
+    LED_Init();
+    LED_On();
+    Matrix_Init();
+
+    OLED_Init();
+    OLED_Clear();
+    ShowGestureScreen(0, 0);
+
+    Debug_SendString("GESTURE 3X3 READY\r\n");
+
+    while (1)
+    {
+        idx = Matrix_Scan();
+
+        if (idx != 0xFF)
+        {
+            release_cnt = 0;
+            if (idx == last_idx)
+            {
+                stable++;
+                if (stable >= 2 && (!display_active || display_idx != idx))
+                {
+                    display_active = 1;
+                    display_idx = idx;
+                    ShowGestureScreen(1, idx);
+                    LED_Toggle();
+
+                    Debug_SendString("KEY=");
+                    Debug_SendNum(idx + 1);
+                    Debug_SendString(" ");
+                    Debug_SendString(g_gestures[idx].name);
+                    Debug_SendString("\r\n");
+                }
+            }
+            else
+            {
+                stable = 0;
+            }
+            last_idx = idx;
+        }
+        else
+        {
+            last_idx = 0xFF;
+            stable = 0;
+            release_cnt++;
+            if (display_active && release_cnt >= 3)
+            {
+                display_active = 0;
+                ShowGestureScreen(0, 0);
+            }
+        }
+
+        delay_ms(5);
+    }
+}

@@ -1,0 +1,298 @@
+#include "stm32f10x.h"
+#include "stm32f10x_gpio.h"
+#include "stm32f10x_rcc.h"
+#include "stm32f10x_adc.h"
+#include "delay.h"
+#include "oled.h"
+#include "led.h"
+#include "usart.h"
+
+/*
+ * 3x3 hydrogel piezoresistive matrix  (NOT a switch matrix)
+ *   Row outputs : PA0, PA1, PA2
+ *   Col ADC in  : PA3(ch3), PA4(ch4), PA5(ch5)
+ *
+ * Each crossing is a resistor that drops under force
+ *   (100g -> ~87k, 700g -> ~10k, idle -> very large).
+ *
+ * Crosstalk removal by "two-measurement" method:
+ *   for each row i, measure every column twice with reversed polarity:
+ *     v1: row i HIGH, other rows LOW
+ *     v2: row i LOW,  other rows HIGH
+ *     signal = v1 - v2
+ *   The differential cancels common-mode drift and other-branch coupling.
+ */
+
+#define ROW_NUM           3
+#define COL_NUM           3
+#define PRESS_THRESHOLD   300    /* press: delta over this */
+#define RELEASE_THRESHOLD 200    /* release: held key delta below this */
+#define SWITCH_MARGIN     300    /* switch key only if another is this much stronger */
+#define NOISE_LEVEL       50     /* dynamic filter threshold */
+#define TRACK_GATE        200    /* track baseline only when max delta < this */
+#define STABLE_CNT        4      /* lock key only after N identical reads */
+#define SAMPLE_AVG        4      /* average N ADC reads per point (denoise) */
+#define CAL_AVG           8      /* startup calibration: average N scans */
+#define HEARTBEAT_LOOPS    30     /* roughly once per second at 30 ms/loop */
+
+static const u16 row_pin[ROW_NUM] = {GPIO_Pin_0, GPIO_Pin_1, GPIO_Pin_2};
+static const u8  col_ch [COL_NUM] = {ADC_Channel_3, ADC_Channel_4, ADC_Channel_5};
+
+static int baseline[ROW_NUM][COL_NUM];
+static int filtered[ROW_NUM][COL_NUM];
+
+/* remap detected key (0..8) -> correct physical key label */
+static const u8 key_map[9] = {4, 2, 6, 1, 5, 3, 7, 8, 9};
+
+void Matrix_GPIO_Init(void)
+{
+    GPIO_InitTypeDef gpio;
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+
+    gpio.GPIO_Pin   = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2;
+    gpio.GPIO_Mode  = GPIO_Mode_Out_PP;
+    gpio.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOA, &gpio);
+
+    gpio.GPIO_Pin  = GPIO_Pin_3 | GPIO_Pin_4 | GPIO_Pin_5;
+    gpio.GPIO_Mode = GPIO_Mode_AIN;
+    GPIO_Init(GPIOA, &gpio);
+
+    GPIO_ResetBits(GPIOA, GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2);
+}
+
+void Matrix_ADC_Init(void)
+{
+    ADC_InitTypeDef adc;
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
+    RCC_ADCCLKConfig(RCC_PCLK2_Div6);
+
+    ADC_DeInit(ADC1);
+    adc.ADC_Mode               = ADC_Mode_Independent;
+    adc.ADC_ScanConvMode       = DISABLE;
+    adc.ADC_ContinuousConvMode = DISABLE;
+    adc.ADC_ExternalTrigConv   = ADC_ExternalTrigConv_None;
+    adc.ADC_DataAlign          = ADC_DataAlign_Right;
+    adc.ADC_NbrOfChannel       = 1;
+    ADC_Init(ADC1, &adc);
+    ADC_Cmd(ADC1, ENABLE);
+
+    ADC_ResetCalibration(ADC1);
+    while (ADC_GetResetCalibrationStatus(ADC1));
+    ADC_StartCalibration(ADC1);
+    while (ADC_GetCalibrationStatus(ADC1));
+}
+
+u16 Matrix_ReadADC(u8 ch)
+{
+    ADC_RegularChannelConfig(ADC1, ch, 1, ADC_SampleTime_239Cycles5);
+    ADC_SoftwareStartConvCmd(ADC1, ENABLE);
+    while (ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == RESET);
+    return ADC_GetConversionValue(ADC1);
+}
+
+/* two-measurement scan: signal[i][j] = v1 - v2 */
+void Matrix_Scan(int signal[][COL_NUM])
+{
+    u8 i, j, k, n;
+    u16 v1[COL_NUM], v2[COL_NUM];
+    u32 sum;
+
+    for (i = 0; i < ROW_NUM; i++)
+    {
+        /* first measurement: row i HIGH, others LOW */
+        for (k = 0; k < ROW_NUM; k++)
+            GPIO_WriteBit(GPIOA, row_pin[k], (k == i) ? Bit_SET : Bit_RESET);
+        delay_us(30);
+        for (j = 0; j < COL_NUM; j++)
+        {
+            sum = 0;
+            for (n = 0; n < SAMPLE_AVG; n++) sum += Matrix_ReadADC(col_ch[j]);
+            v1[j] = (u16)(sum / SAMPLE_AVG);
+        }
+
+        /* second measurement: row i LOW, others HIGH */
+        for (k = 0; k < ROW_NUM; k++)
+            GPIO_WriteBit(GPIOA, row_pin[k], (k == i) ? Bit_RESET : Bit_SET);
+        delay_us(30);
+        for (j = 0; j < COL_NUM; j++)
+        {
+            sum = 0;
+            for (n = 0; n < SAMPLE_AVG; n++) sum += Matrix_ReadADC(col_ch[j]);
+            v2[j] = (u16)(sum / SAMPLE_AVG);
+        }
+
+        for (j = 0; j < COL_NUM; j++)
+            signal[i][j] = (int)v1[j] - (int)v2[j];
+    }
+
+    GPIO_ResetBits(GPIOA, GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2);
+}
+
+/* dynamic filter (int version) */
+int DynamicFilter(int raw, int filt)
+{
+    int diff = raw - filt;
+    if (diff > NOISE_LEVEL || diff < -NOISE_LEVEL)
+        return (filt + raw) / 2;          /* weak   */
+    else
+        return (filt * 3 + raw) / 4;      /* strong */
+}
+
+int main(void)
+{
+    u8 i, j, k;
+    int d, best, best_pos;
+    int held_key = -1;
+    int reported_key = -1;
+    int candidate = -1;
+    u8 cand_cnt = 0;
+    u8 heartbeat_cnt = 0;
+    int d_held;
+    int raw[ROW_NUM][COL_NUM];
+
+    SystemInit();
+    delay_init(72);
+
+    LED_Init();
+    LED_On();
+    USART1_Config();
+    Matrix_GPIO_Init();
+    Matrix_ADC_Init();
+    OLED_Init();
+
+    /* startup auto-calibration: average CAL_AVG two-measurement scans */
+    for (i = 0; i < ROW_NUM; i++)
+        for (j = 0; j < COL_NUM; j++)
+            baseline[i][j] = 0;
+    for (k = 0; k < CAL_AVG; k++)
+    {
+        Matrix_Scan(raw);
+        delay_ms(5);
+        for (i = 0; i < ROW_NUM; i++)
+            for (j = 0; j < COL_NUM; j++)
+                baseline[i][j] += raw[i][j];
+    }
+    for (i = 0; i < ROW_NUM; i++)
+        for (j = 0; j < COL_NUM; j++)
+        {
+            baseline[i][j] /= CAL_AVG;
+            filtered[i][j] = baseline[i][j];
+        }
+
+    OLED_Clear();
+    OLED_ShowString(0, 0, "Gesture:", 16, 1);
+    printf("DEVICE,GESTURE3X3,1\r\n");
+
+    while (1)
+    {
+        Matrix_Scan(raw);
+
+        /* dynamic filter */
+        for (i = 0; i < ROW_NUM; i++)
+            for (j = 0; j < COL_NUM; j++)
+                filtered[i][j] = DynamicFilter(raw[i][j], filtered[i][j]);
+
+        /* max positive delta (press = signal rises) */
+        best = -1;
+        best_pos = 0;
+        for (i = 0; i < ROW_NUM; i++)
+            for (j = 0; j < COL_NUM; j++)
+            {
+                d = filtered[i][j] - baseline[i][j];
+                if (d > best_pos) { best_pos = d; best = i * COL_NUM + j; }
+            }
+
+        /* lock (debounced) / switch / release */
+        if (held_key < 0)
+        {
+            if (best_pos > PRESS_THRESHOLD)
+            {
+                if (best == candidate)
+                {
+                    if (++cand_cnt >= STABLE_CNT)
+                    {
+                        held_key = best;
+                        candidate = -1;
+                        cand_cnt = 0;
+                    }
+                }
+                else
+                {
+                    candidate = best;
+                    cand_cnt = 1;
+                }
+            }
+            else
+            {
+                candidate = -1;
+                cand_cnt = 0;
+            }
+        }
+        else
+        {
+            d_held = filtered[held_key / COL_NUM][held_key % COL_NUM]
+                   - baseline[held_key / COL_NUM][held_key % COL_NUM];
+
+            if (best >= 0 && best != held_key && best_pos > d_held + SWITCH_MARGIN)
+            {
+                held_key = best;
+                d_held = best_pos;
+            }
+
+            if (d_held < RELEASE_THRESHOLD)
+                held_key = -1;
+        }
+
+        /* Report only state changes so one press triggers one animation. */
+        if (held_key != reported_key)
+        {
+            if (reported_key >= 0)
+                printf("KEY,%u,UP,0\r\n", key_map[reported_key]);
+            if (held_key >= 0)
+                printf("KEY,%u,DOWN,%d\r\n", key_map[held_key], best_pos);
+            reported_key = held_key;
+        }
+
+        if (++heartbeat_cnt >= HEARTBEAT_LOOPS)
+        {
+            heartbeat_cnt = 0;
+            printf("HEARTBEAT,%d,%d\r\n",
+                   (held_key >= 0) ? key_map[held_key] : 0,
+                   best_pos);
+        }
+
+        /* auto baseline tracking: idle AND no press trend */
+        if (held_key < 0 && best_pos < TRACK_GATE)
+        {
+            for (i = 0; i < ROW_NUM; i++)
+                for (j = 0; j < COL_NUM; j++)
+                {
+                    if (filtered[i][j] > baseline[i][j])
+                        baseline[i][j] += (filtered[i][j] - baseline[i][j]) >> 6;
+                    else if (filtered[i][j] < baseline[i][j])
+                        baseline[i][j] -= (baseline[i][j] - filtered[i][j]) >> 6;
+                }
+        }
+
+        /* display */
+        if (held_key >= 0)
+        {
+            OLED_ShowString(0, 16, "KEY", 16, 1);
+            OLED_ShowNum(24, 16, key_map[held_key], 1, 16, 1);
+            OLED_ShowString(32, 16, "   ", 16, 1);
+            LED_On();
+        }
+        else
+        {
+            OLED_ShowString(0, 16, "--  ", 16, 1);
+            LED_Off();
+        }
+
+        OLED_ShowString(0, 32, "d=", 16, 1);
+        OLED_ShowNum(16, 32, (u32)best_pos, 4, 16, 1);
+        OLED_ShowString(48, 32, "     ", 16, 1);
+
+        delay_ms(30);
+    }
+}

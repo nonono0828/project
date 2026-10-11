@@ -1,0 +1,341 @@
+/* Single light industrial surface for the Android shell and control console.
+   Video and alarm colours deliberately remain owned by their components. */
+:root {
+  color-scheme: light;
+  --bg-primary: #eef1f5;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f7f8fa;
+  --text-primary: #17212b;
+  --text-secondary: #5f6b76;
+  --text-tertiary: #8a96a3;
+  --border-color: #dce2e8;
+  --glass-bg: rgba(255, 255, 255, .94);
+  --glass-border: #dce2e8;
+  --control-bg: rgba(255, 255, 255, .98);
+  --shadow-window: 0 10px 28px rgba(29, 42, 54, .09);
+}
+
+html, body, #app { background: #eef1f5 !important; color: #17212b !important; }
+.dark { color-scheme: light; }
+
+/* Shared window / modal treatment */
+.glass-window,
+.modal-content,
+.dialog-content,
+.tablet-nav-drawer,
+.tablet-event-drawer {
+  border-color: #dce2e8 !important;
+  background: rgba(255,255,255,.96) !important;
+  box-shadow: 0 12px 30px rgba(29,42,54,.10) !important;
+}
+.glass-window-header { border-color: #e1e6eb !important; background: #f7f8fa !important; }
+.data-card { border-color: #e1e6eb !important; background: #f7f8fa !important; }
+.tablet-drawer-overlay, .tablet-event-overlay { background: rgba(29, 42, 54, .20) !important; }
+
+/* Login, launcher and field configuration all use the same calm, readable shell. */
+.login-page,
+.workspace-page,
+.setup-page,
+.local-portal {
+  color: #17212b !important;
+  background: #eef1f5 !important;
+}
+.login-page .grid-overlay,
+.workspace-page .grid-overlay,
+.setup-page .grid-overlay { display: none !important; }
+.login-page .brand-header,
+.setup-page > .setup-shell > header,
+.workspace-page > .workspace-shell > header,
+.local-portal > header {
+  min-height: 70px !important;
+  padding: 10px 14px !important;
+  border: 1px solid #dce2e8 !important;
+  border-radius: 18px !important;
+  border-color: #dce2e8 !important;
+  background: rgba(255,255,255,.90) !important;
+  box-shadow: 0 8px 22px rgba(29,42,54,.07) !important;
+  overflow: hidden;
+}
+.login-page .brand-header h1,
+.setup-page header strong,
+.local-portal .portal-title strong { color: #17212b !important; }
+.login-page .brand-header p,
+.setup-page header small,
+.local-portal .portal-title small { color: #71808c !important; }
+.login-page .brand-mark {
+  border-color: #c8d1d9 !important;
+  background: #f8fafb !important;
+  box-shadow: none !important;
+}
+.login-page .brand-mark i, .login-page .brand-mark span { border-color: #1f5f95 !important; background-color: #1f5f95 !important; }
+.login-page .version { color: #60717f !important; border-color: #d5dde4 !important; background: #f8fafb !important; }
+.login-page .login-copy h2,
+.workspace-page h1,
+.setup-page .intro h1 { color: #17212b !important; }
+.login-page .login-copy p,
+.setup-page .intro p { color: #64727f !important; }
+.login-page .login-copy > span,
+.setup-page .intro > span { color: #1f6fae !important; }
+.login-page .connectivity-strip,
+.setup-page .returned-tip,
+.local-portal .connection-tip {
+  border-color: #d8e4ed !important;
+  color: #547087 !important;
+  background: #f4f8fb !important;
+}
+.login-page .login-card,
+.setup-page .setup-card,
+.workspace-page .mode-card {
+  border-color: #dce2e8 !important;
+  background: #ffffff !important;
+  box-shadow: 0 9px 24px rgba(29,42,54,.07) !important;
+}
+.login-page label > span,
+.login-page .field-group > label,
+.setup-page label span { color: #52606c !important; }
+.login-page input,
+.setup-page input {
+  color: #17212b !important;
+  border-color: #cfd8e0 !important;
+  background: #ffffff !important;
+}
+.login-page input::placeholder,
+.setup-page input::placeholder { color: #98a4ae !important; }
+.login-page .password-field button { color: #1f6fae !important; }
+.login-page .security-note,
+.login-page footer,
+.setup-page .setup-card > p,
+.setup-page .troubleshooting { color: #697884 !important; }
+.login-page footer b { color: #a3adb6 !important; }
+.setup-page .stepper { border-color: #dce2e8 !important; background: #f8fafb !important; }
+.setup-page .stepper i { border-color: #cbd5dd !important; background: #ffffff !important; color: #60717f !important; }
+.setup-page .card-icon { border-color: #c9d9e6 !important; background: #edf5fb !important; }
+.setup-page .address-icon { border-color: #c9ddd4 !important; background: #eef8f4 !important; }
+.setup-page .icon-button,
+.setup-page .logout-button,
+.local-portal .back-button,
+.local-portal .retry-button {
+  border: 1px solid #d5dde4 !important;
+  color: #4e6272 !important;
+  background: #ffffff !important;
+}
+.local-portal .logout-button { border: 1px solid #f0d5d5 !important; color: #c44141 !important; background: #fff7f7 !important; }
+.local-portal { background: #eef1f5 !important; }
+.local-portal .portal-frame { background: #ffffff !important; }
+.local-portal .load-error { color: #17212b !important; background: #ffffff !important; }
+.local-portal .load-error p { color: #657482 !important; }
+.local-portal .load-error button.secondary { color: #52606c !important; background: #f1f4f7 !important; }
+
+/* Industrial actions: restrained blue, square-ish corners, no glassy dark surfaces. */
+.login-page .login-button,
+.setup-page .primary-action,
+.setup-page .open-action,
+.local-portal .load-error button {
+  border: 1px solid #1d6ea9 !important;
+  color: #ffffff !important;
+  background: #247ab8 !important;
+  box-shadow: 0 6px 14px rgba(36,122,184,.18) !important;
+}
+.setup-page .confirm-action { border-color: #b9d9cb !important; color: #236d59 !important; background: #edf8f3 !important; }
+.setup-page .privacy-note { border-color: #cee5dc !important; background: #f2faf6 !important; }
+.setup-page .privacy-note p { color: #5e7a70 !important; }
+.setup-page .troubleshooting { border-color: #dce2e8 !important; background: #f8fafb !important; }
+
+/* App launcher: these rules deliberately override its former dark “operations room” palette. */
+.workspace-page .brand-copy p { color: #71808c !important; }
+.workspace-page .brand-copy h1 { color: #17212b !important; }
+.workspace-page .brand-mark { border-color: #c8d1d9 !important; background: #f8fafb !important; }
+.workspace-page .brand-mark i, .workspace-page .brand-mark span { border-color: #1f5f95 !important; background-color: #1f5f95 !important; }
+.workspace-page .logout-button { border: 1px solid #d5dde4 !important; color: #4e6272 !important; background: #ffffff !important; }
+.workspace-page .theme-toggle-button {
+  width: 58px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  border: 1px solid #a9d8b5 !important;
+  border-radius: 999px !important;
+  color: #fff !important;
+  background: #34c759 !important;
+  white-space: nowrap !important;
+}
+.workspace-page .theme-toggle-button.is-dark {
+  border-color: #687887 !important;
+  background: #687887 !important;
+}
+.workspace-page .logout-button {
+  min-width: 64px !important;
+  margin-left: 0 !important;
+  white-space: nowrap !important;
+}
+.workspace-page .session-strip { border-color: #dce2e8 !important; background: #ffffff !important; }
+.workspace-page .session-avatar { border-color: #c9d9e6 !important; color: #256b9f !important; background: #edf5fb !important; }
+.workspace-page .session-strip small,
+.workspace-page .session-expiry { color: #71808c !important; }
+.workspace-page .session-strip strong { color: #17212b !important; }
+.workspace-page .is-verified { border-color: #c9e1d6 !important; color: #25745d !important; background: #eef9f4 !important; }
+.workspace-page .is-offline { border-color: #ead6ae !important; color: #946b1e !important; background: #fff8e9 !important; }
+.workspace-page .hero > span { color: #1f6fae !important; background: transparent !important; }
+.workspace-page .hero h2 { color: #17212b !important; }
+.workspace-page .hero p { color: #64727f !important; }
+.workspace-page .mode-card { color: #17212b !important; border-color: #dce2e8 !important; background: #ffffff !important; box-shadow: 0 9px 24px rgba(29,42,54,.07) !important; }
+.workspace-page .cloud-card { border-left: 3px solid #2c7db8 !important; }
+.workspace-page .local-card { border-left: 3px solid #348969 !important; }
+.workspace-page .mode-icon { border-color: #cbd7e1 !important; }
+.workspace-page .cloud-icon { background: #edf5fb !important; }
+.workspace-page .cloud-icon i { border-color: #2a75ad !important; }
+.workspace-page .cloud-icon i:nth-child(3) { background: #edf5fb !important; }
+.workspace-page .local-icon { background: #eef8f4 !important; }
+.workspace-page .local-icon i { background: #368b70 !important; }
+.workspace-page .mode-copy span { color: #687886 !important; }
+.workspace-page .mode-copy strong { color: #17212b !important; }
+.workspace-page .mode-copy p { color: #71808c !important; }
+.workspace-page .mode-card > b { color: #6a7b88 !important; }
+.workspace-page .recovery-card { border-color: #ead6ae !important; background: #fff8e9 !important; }
+.workspace-page .recovery-card strong { color: #86621f !important; }
+.workspace-page .recovery-card p { color: #766641 !important; }
+.workspace-page .recovery-card button { border-color: #e4c882 !important; color: #80601d !important; background: #fff4d8 !important; }
+.workspace-page .safety-card { border-color: #cfe5dc !important; background: #f1faf6 !important; }
+.workspace-page .safety-card > i { background: #2f9975 !important; box-shadow: none !important; }
+.workspace-page .safety-card strong { color: #28664f !important; }
+.workspace-page .safety-card p { color: #5f7d72 !important; }
+.workspace-page footer { color: #71808c !important; }
+.workspace-page footer b { color: #a3adb6 !important; }
+
+/* Responsive control console */
+.responsive-dashboard { background: #eef1f5 !important; }
+.responsive-header { border-color: #dce2e8 !important; background: rgba(255,255,255,.94) !important; }
+.mobile-status-card { border-color: #dce2e8 !important; background: #ffffff !important; }
+.bottom-navigation { border-color: #dce2e8 !important; background: rgba(255,255,255,.98) !important; box-shadow: 0 -6px 18px rgba(29,42,54,.06); }
+.bottom-navigation button { color: #798691 !important; }
+.bottom-navigation button.active { color: #1e6fae !important; background: #eaf3fb !important; }
+
+/* Night industrial palette.  It comes after the light surface rules on
+   purpose: users can safely switch without remounting any control widgets. */
+:root.dark {
+  color-scheme: dark;
+  --bg-primary: #0e151c;
+  --bg-secondary: #151f29;
+  --bg-tertiary: #1a2631;
+  --text-primary: #edf3f8;
+  --text-secondary: #aebbc6;
+  --text-tertiary: #728190;
+  --border-color: #2a3947;
+  --glass-bg: rgba(20, 30, 40, .96);
+  --glass-border: #2a3947;
+  --control-bg: rgba(16, 24, 33, .98);
+  --shadow-window: 0 14px 34px rgba(0, 0, 0, .28);
+}
+html.dark, html.dark body, html.dark #app { background: #0e151c !important; color: #edf3f8 !important; }
+html.dark ::-webkit-scrollbar-thumb { background: rgba(210,225,238,.22); }
+
+.dark .glass-window,
+.dark .modal-content,
+.dark .dialog-content,
+.dark .tablet-nav-drawer,
+.dark .tablet-event-drawer { border-color: #2a3947 !important; background: #141e28 !important; box-shadow: 0 14px 34px rgba(0,0,0,.28) !important; }
+.dark .glass-window-header { border-color: #2a3947 !important; background: #19242e !important; }
+.dark .data-card { border-color: #2a3947 !important; background: #18232e !important; }
+
+.dark .login-page,
+.dark .workspace-page,
+.dark .setup-page,
+.dark .local-portal,
+.dark .responsive-dashboard { color: #edf3f8 !important; background: #0e151c !important; }
+.dark .login-page .brand-header,
+.dark .setup-page > .setup-shell > header,
+.dark .workspace-page > .workspace-shell > header,
+.dark .local-portal > header,
+.dark .responsive-header { border-color: #2a3947 !important; background: #141e28 !important; }
+.dark .login-page .brand-header h1,
+.dark .setup-page header strong,
+.dark .local-portal .portal-title strong,
+.dark .login-page .login-copy h2,
+.dark .workspace-page h1,
+.dark .setup-page .intro h1 { color: #edf3f8 !important; }
+.dark .login-page .brand-header p,
+.dark .setup-page header small,
+.dark .local-portal .portal-title small,
+.dark .login-page .login-copy p,
+.dark .setup-page .intro p { color: #8fa0af !important; }
+.dark .login-page .brand-mark,
+.dark .workspace-page .brand-mark { border-color: #344a5e !important; background: #172634 !important; }
+.dark .login-page .brand-mark i,
+.dark .login-page .brand-mark span,
+.dark .workspace-page .brand-mark i,
+.dark .workspace-page .brand-mark span { border-color: #6fb2e8 !important; background-color: #6fb2e8 !important; }
+.dark .login-page .version { border-color: #344554 !important; color: #9eb0bf !important; background: #141e28 !important; }
+.dark .login-page .connectivity-strip,
+.dark .setup-page .returned-tip,
+.dark .local-portal .connection-tip { border-color: #284357 !important; color: #91abc0 !important; background: #102131 !important; }
+.dark .login-page .login-card,
+.dark .setup-page .setup-card,
+.dark .workspace-page .mode-card { border-color: #2b3c4b !important; background: #15212c !important; box-shadow: 0 12px 30px rgba(0,0,0,.24) !important; }
+.dark .login-page label > span,
+.dark .login-page .field-group > label,
+.dark .setup-page label span { color: #b4c2cf !important; }
+.dark .login-page input,
+.dark .setup-page input { border-color: #344a5d !important; color: #edf3f8 !important; background: #0d151d !important; }
+.dark .login-page input::placeholder,
+.dark .setup-page input::placeholder { color: #6e7d8a !important; }
+.dark .login-page .security-note,
+.dark .login-page footer,
+.dark .setup-page .setup-card > p,
+.dark .setup-page .troubleshooting { color: #8799a8 !important; }
+.dark .setup-page .stepper,
+.dark .setup-page .troubleshooting { border-color: #2b3d4d !important; background: #141f2a !important; }
+.dark .setup-page .stepper i { border-color: #3a4e60 !important; color: #9fb0bf !important; background: #192632 !important; }
+.dark .setup-page .card-icon { border-color: #35546d !important; background: #122a40 !important; }
+.dark .setup-page .address-icon { border-color: #315d50 !important; background: #102a25 !important; }
+.dark .setup-page .icon-button,
+.dark .setup-page .logout-button,
+.dark .local-portal .back-button,
+.dark .local-portal .retry-button { border-color: #344554 !important; color: #b6c7d4 !important; background: #15212c !important; }
+.dark .local-portal .logout-button { border-color: #633a3e !important; color: #f0a3a3 !important; background: #2a181d !important; }
+.dark .local-portal .portal-frame,
+.dark .local-portal .load-error { background: #111b24 !important; color: #edf3f8 !important; }
+.dark .local-portal .load-error p { color: #96a8b6 !important; }
+.dark .local-portal .load-error button.secondary { color: #b2c0cb !important; background: #202d38 !important; }
+.dark .login-page .login-button,
+.dark .setup-page .primary-action,
+.dark .setup-page .open-action,
+.dark .local-portal .load-error button { border-color: #3687c5 !important; background: #286fa5 !important; }
+.dark .setup-page .confirm-action { border-color: #2e6452 !important; color: #a0d9c5 !important; background: #123128 !important; }
+.dark .setup-page .privacy-note { border-color: #284a41 !important; background: #102620 !important; }
+.dark .setup-page .privacy-note p { color: #8eb6a8 !important; }
+
+.dark .workspace-page .brand-copy p { color: #90a1b0 !important; }
+.dark .workspace-page .brand-copy h1,
+.dark .workspace-page .session-strip strong,
+.dark .workspace-page .hero h2,
+.dark .workspace-page .mode-copy strong { color: #edf3f8 !important; }
+.dark .workspace-page .logout-button { border-color: #344554 !important; color: #b9c7d2 !important; background: #15212c !important; }
+.dark .workspace-page .theme-toggle-button { border-color: #687887 !important; background: #687887 !important; }
+.dark .workspace-page .session-strip { border-color: #2b3d4d !important; background: #141f2a !important; }
+.dark .workspace-page .session-avatar { border-color: #35546d !important; color: #b9ddfa !important; background: #122a40 !important; }
+.dark .workspace-page .session-strip small,
+.dark .workspace-page .session-expiry,
+.dark .workspace-page .hero p,
+.dark .workspace-page .mode-copy p { color: #8fa0af !important; }
+.dark .workspace-page .is-verified { border-color: #2e5a4d !important; color: #9cd9c4 !important; background: #102820 !important; }
+.dark .workspace-page .is-offline { border-color: #5c4a29 !important; color: #d9b670 !important; background: #251e12 !important; }
+.dark .workspace-page .hero > span { color: #72b9ed !important; }
+.dark .workspace-page .mode-card { border-color: #2b3d4d !important; background: #15212c !important; }
+.dark .workspace-page .cloud-card { border-left-color: #3e91cf !important; }
+.dark .workspace-page .local-card { border-left-color: #43a985 !important; }
+.dark .workspace-page .mode-icon { border-color: #334a5e !important; }
+.dark .workspace-page .cloud-icon { background: #122a40 !important; }
+.dark .workspace-page .cloud-icon i { border-color: #6eb7f0 !important; }
+.dark .workspace-page .cloud-icon i:nth-child(3) { background: #122a40 !important; }
+.dark .workspace-page .local-icon { background: #102a25 !important; }
+.dark .workspace-page .local-icon i { background: #6dceb1 !important; }
+.dark .workspace-page .mode-copy span,
+.dark .workspace-page .mode-card > b,
+.dark .workspace-page footer { color: #91a2b1 !important; }
+.dark .workspace-page .safety-card { border-color: #294b41 !important; background: #102820 !important; }
+.dark .workspace-page .safety-card strong { color: #a5d9c8 !important; }
+.dark .workspace-page .safety-card p { color: #88aa9f !important; }
+
+.dark .mobile-status-card { border-color: #2a3947 !important; background: #15212c !important; }
+.dark .bottom-navigation { border-color: #2a3947 !important; background: #101821 !important; box-shadow: 0 -6px 18px rgba(0,0,0,.20) !important; }
+.dark .bottom-navigation button { color: #8f9eaa !important; }
+.dark .bottom-navigation button.active { color: #70b7ec !important; background: #172f42 !important; }

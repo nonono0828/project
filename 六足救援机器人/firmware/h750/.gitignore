@@ -1,0 +1,33 @@
+# Keil build directories
+MDK-ARM/Objects/
+MDK-ARM/Listings/
+MDK-ARM/app_test/
+
+# Keil and Arm compiler outputs
+*.o
+*.d
+*.crf
+*.axf
+*.elf
+*.hex
+*.bin
+*.map
+*.lnp
+*.lst
+*.dep
+*.htm
+*.log
+
+# Keil per-user/debugger state
+*.uvguix.*
+*.uvoptx
+MDK-ARM/DebugConfig/
+MDK-ARM/JLinkSettings.ini
+MDK-ARM/.vscode/
+
+# Temporary and backup files
+*.bak
+*.bak_*
+*.tmp
+*.lock
+~$*

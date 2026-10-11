@@ -1,0 +1,6 @@
+category,part,interface,notes
+controller,STM32H750,SPI/UART/I2C,main control
+communication,ESP32-S3/BW21,USB/UART,video and network
+cellular,Fibocom L610,USB/RNDIS,4G uplink
+radar,D6 LiDAR,UART,360 degree obstacle sensing
+imu,BMI088,SPI,attitude sensing

@@ -1,0 +1,7 @@
+**/node_modules/
+水凝胶/PC_APP/dist/
+水凝胶/PC_APP/release*/
+水凝胶/应用/
+*.log
+.DS_Store
+Thumbs.db
